@@ -49,7 +49,7 @@ export default function Layout({
 }: {
   children: React.ReactNode
   session: Session | null
-  profile: Profile | null
+  profile?: Profile | null
 }) {
   const router = useRouter()
   const isSuperAdmin = profile?.role === 'superadmin'
