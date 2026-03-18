@@ -53,6 +53,7 @@ export default function Layout({
 }) {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(profileProp || null)
+  const [activeDept, setActiveDept] = useState<string>('marketing')
 
   useEffect(() => {
     if (profileProp) { setProfile(profileProp); return }
@@ -65,16 +66,22 @@ export default function Layout({
       .then(({ data }) => { if (data) setProfile(data as Profile) })
   }, [session, profileProp])
 
-  const isSuperAdmin = profile?.role === 'superadmin'
+  useEffect(() => {
+    if (!profile) return
+    const isSuperAdmin = profile.role === 'superadmin'
+    const depts = isSuperAdmin
+      ? DEPARTMENTS
+      : DEPARTMENTS.filter(d => profile.departments?.includes(d.id))
+    const first = depts[0]?.id || 'marketing'
+    setActiveDept(first)
+  }, [profile])
 
+  if (!session) { router.push('/login'); return null }
+
+  const isSuperAdmin = profile?.role === 'superadmin'
   const availableDepts = isSuperAdmin
     ? DEPARTMENTS
     : DEPARTMENTS.filter(d => profile?.departments?.includes(d.id))
-
-  const defaultDept = availableDepts[0]?.id || 'marketing'
-  const [activeDept, setActiveDept] = useState<string>(defaultDept)
-
-  if (!session) { router.push('/login'); return null }
 
   if (profile?.role === 'pending') {
     return (
