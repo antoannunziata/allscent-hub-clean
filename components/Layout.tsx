@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import type { Profile } from '@/pages/_app'
@@ -45,13 +45,26 @@ const NAV_BY_DEPT: Record<string, { href: string; icon: string; label: string; s
 export default function Layout({
   children,
   session,
-  profile,
+  profile: profileProp,
 }: {
   children: React.ReactNode
   session: Session | null
   profile?: Profile | null
 }) {
   const router = useRouter()
+  const [profile, setProfile] = useState<Profile | null>(profileProp || null)
+
+  useEffect(() => {
+    if (profileProp) { setProfile(profileProp); return }
+    if (!session) return
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => { if (data) setProfile(data as Profile) })
+  }, [session, profileProp])
+
   const isSuperAdmin = profile?.role === 'superadmin'
 
   const availableDepts = isSuperAdmin
@@ -115,7 +128,6 @@ export default function Layout({
             </span>
           </div>
         </div>
-
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {sections.map((sec, si) => (
             <div key={si}>
@@ -141,7 +153,6 @@ export default function Layout({
               ))}
             </div>
           ))}
-
           {(isSuperAdmin || profile?.role === 'admin') && (
             <>
               <div className="text-[10px] uppercase tracking-[1.5px] text-muted font-semibold px-3 pt-4 pb-1">
@@ -162,7 +173,6 @@ export default function Layout({
             </>
           )}
         </nav>
-
         <div className="p-4 border-t border-white/5">
           {isSuperAdmin && availableDepts.length > 1 && (
             <div className="mb-3">
@@ -178,7 +188,6 @@ export default function Layout({
               </select>
             </div>
           )}
-
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-purple-400 flex items-center justify-center text-xs font-bold text-black flex-shrink-0">
               {initials}
@@ -198,7 +207,6 @@ export default function Layout({
           </button>
         </div>
       </aside>
-
       <main className="ml-56 flex-1 p-7 max-w-[1400px]">
         {children}
       </main>
