@@ -34,12 +34,14 @@ const NAV_BY_DEPT: Record<string, { href: string; icon: string; label: string; s
     { href: '/calendar',   icon: '📅', label: 'Calendario' },
     { href: '/todo',       icon: '✅', label: 'To-do / Task',       section: 'Task' },
   ],
-  hr: [
-    { href: '/dashboard',  icon: '🏠', label: 'Home' },
-    { href: '/calendar',   icon: '📅', label: 'Calendario' },
-    { href: '/todo',       icon: '✅', label: 'To-do / Task',       section: 'Task' },
-    { href: '/team',       icon: '👥', label: 'Team',               section: 'Risorse' },
-  ],
+ hr: [
+  { href: '/dashboard',  icon: '🏠', label: 'Home' },
+  { href: '/calendar',   icon: '📅', label: 'Calendario' },
+  { href: '/todo',       icon: '✅', label: 'To-do / Task',    section: 'Task' },
+  { href: '/team',       icon: '👥', label: 'Anagrafica',      section: 'Risorse' },
+  { href: '/pdv',        icon: '🏪', label: 'Stato PDV' },
+  { href: '/selezione',  icon: '🔍', label: 'Selezione' },
+],
 }
 
 export default function Layout({
