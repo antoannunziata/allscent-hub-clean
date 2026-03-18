@@ -19,12 +19,20 @@ export default function TodoPage({ session }: { session: Session | null }) {
   const [myStart, setMyStart] = useState('')
   const [myDue, setMyDue] = useState('')
 
-  // Modifica task
+  // Modifica todo personale
   const [editingTodo, setEditingTodo] = useState<any>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editPrio, setEditPrio] = useState('media')
   const [editStart, setEditStart] = useState('')
   const [editDue, setEditDue] = useState('')
+
+  // Modifica team task
+  const [editingTask, setEditingTask] = useState<any>(null)
+  const [editTaskTitle, setEditTaskTitle] = useState('')
+  const [editTaskDesc, setEditTaskDesc] = useState('')
+  const [editTaskPrio, setEditTaskPrio] = useState('media')
+  const [editTaskStart, setEditTaskStart] = useState('')
+  const [editTaskDue, setEditTaskDue] = useState('')
 
   // Task team
   const [tasks, setTasks] = useState<any[]>([])
@@ -78,6 +86,7 @@ export default function TodoPage({ session }: { session: Session | null }) {
     await supabase.from('team_subtasks').update({ done: !done }).eq('id', id); await loadAll()
   }
 
+  // Edit todo personale
   function openEdit(todo: any) {
     setEditingTodo(todo)
     setEditTitle(todo.title)
@@ -85,17 +94,31 @@ export default function TodoPage({ session }: { session: Session | null }) {
     setEditStart(todo.start_date || '')
     setEditDue(todo.due_date || '')
   }
-
   async function saveEdit() {
     if (!editingTodo) return
     await supabase.from('todos').update({
-      title: editTitle,
-      priority: editPrio,
-      start_date: editStart || null,
-      due_date: editDue || null,
+      title: editTitle, priority: editPrio,
+      start_date: editStart || null, due_date: editDue || null,
     }).eq('id', editingTodo.id)
-    setEditingTodo(null)
-    await loadAll()
+    setEditingTodo(null); await loadAll()
+  }
+
+  // Edit team task
+  function openEditTask(task: any) {
+    setEditingTask(task)
+    setEditTaskTitle(task.title)
+    setEditTaskDesc(task.description || '')
+    setEditTaskPrio(task.priority || 'media')
+    setEditTaskStart(task.start_date || '')
+    setEditTaskDue(task.due_date || '')
+  }
+  async function saveEditTask() {
+    if (!editingTask) return
+    await supabase.from('team_tasks').update({
+      title: editTaskTitle, description: editTaskDesc, priority: editTaskPrio,
+      start_date: editTaskStart || null, due_date: editTaskDue || null,
+    }).eq('id', editingTask.id)
+    setEditingTask(null); await loadAll()
   }
 
   function handleUserSelect(idx: number, uid: string) {
@@ -141,9 +164,23 @@ export default function TodoPage({ session }: { session: Session | null }) {
   const openTasks = tasks.filter(t => !t.done)
   const doneTasks = tasks.filter(t => t.done)
 
+  // Riepilogo task in sospeso per membro del team
+  const teamSummary: Record<string, { name: string; count: number }> = {}
+  tasks.forEach(task => {
+    if (task.done) return
+    ;(task.team_subtasks || []).forEach((s: any) => {
+      if (s.done) return
+      const key = s.assigned_to
+      if (!teamSummary[key]) teamSummary[key] = { name: s.assigned_name || key, count: 0 }
+      teamSummary[key].count++
+    })
+  })
+  const teamSummaryList = Object.values(teamSummary).sort((a, b) => b.count - a.count)
+
   return (
     <Layout session={session}>
-      {/* Modal modifica */}
+
+      {/* Modal modifica todo personale */}
       {editingTodo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
@@ -175,6 +212,47 @@ export default function TodoPage({ session }: { session: Session | null }) {
             <div className="flex gap-3 mt-6">
               <button className="btn-primary flex-1" onClick={saveEdit}>Salva</button>
               <button className="btn-secondary flex-1" onClick={() => setEditingTodo(null)}>Annulla</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal modifica team task */}
+      {editingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="font-serif text-xl text-white mb-5">Modifica task team</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="label mb-1.5">Titolo</div>
+                <input type="text" className="input" value={editTaskTitle} onChange={e => setEditTaskTitle(e.target.value)} />
+              </div>
+              <div>
+                <div className="label mb-1.5">Descrizione (opz.)</div>
+                <textarea className="input resize-none h-16" value={editTaskDesc} onChange={e => setEditTaskDesc(e.target.value)} />
+              </div>
+              <div>
+                <div className="label mb-1.5">Priorità</div>
+                <select className="input" value={editTaskPrio} onChange={e => setEditTaskPrio(e.target.value)}>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="bassa">Bassa</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="label mb-1.5">Inizio</div>
+                  <input type="date" className="input" value={editTaskStart} onChange={e => setEditTaskStart(e.target.value)} />
+                </div>
+                <div>
+                  <div className="label mb-1.5">Scadenza</div>
+                  <input type="date" className="input" value={editTaskDue} onChange={e => setEditTaskDue(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button className="btn-primary flex-1" onClick={saveEditTask}>Salva</button>
+              <button className="btn-secondary flex-1" onClick={() => setEditingTask(null)}>Annulla</button>
             </div>
           </div>
         </div>
@@ -227,6 +305,28 @@ export default function TodoPage({ session }: { session: Session | null }) {
             <button className="btn-primary mt-4" onClick={addMyTodo} disabled={loading}>Aggiungi</button>
           </div>
 
+          {/* Riepilogo task in sospeso per membro */}
+          {teamSummaryList.length > 0 && (
+            <div className="card mb-6">
+              <div className="label mb-4">Task in sospeso per membro del team</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {teamSummaryList.map(member => (
+                  <div key={member.name} className="flex items-center justify-between bg-surface2 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-purple-400 flex items-center justify-center text-[10px] font-bold text-black flex-shrink-0">
+                        {member.name.split(' ').map((n: string) => n[0]).join('').slice(0,2).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium truncate">{member.name.split(' ')[0]}</span>
+                    </div>
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded-lg ${member.count >= 3 ? 'bg-red-500/20 text-red-400' : member.count === 2 ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
+                      {member.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {openSub.length > 0 && (
             <div className="card mb-5">
               <div className="label mb-4">Assegnati dal team ({openSub.length})</div>
@@ -255,7 +355,7 @@ export default function TodoPage({ session }: { session: Session | null }) {
                   <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: PRIO_COLORS[t.priority]+'22', color: PRIO_COLORS[t.priority] }}>{t.priority}</span>
                   {t.start_date && <span className="text-xs text-muted">{t.start_date}</span>}
                   {t.due_date && <span className="text-xs text-muted">{t.due_date}</span>}
-                  <button className="btn-ghost text-muted2 hover:text-accent transition-colors" onClick={() => openEdit(t)} title="Modifica">✏️</button>
+                  <button className="btn-ghost hover:text-accent transition-colors" onClick={() => openEdit(t)} title="Modifica">✏️</button>
                   <button className="btn-ghost" onClick={() => deleteTodo(t.id)}>x</button>
                 </div>
               ))
@@ -361,7 +461,10 @@ export default function TodoPage({ session }: { session: Session | null }) {
                       </div>
                     )}
                   </div>
-                  {isAdmin && <button className="btn-ghost" onClick={() => deleteTask(task.id)}>x</button>}
+                  <div className="flex items-center gap-2">
+                    {isAdmin && <button className="btn-ghost hover:text-accent transition-colors" onClick={() => openEditTask(task)} title="Modifica">✏️</button>}
+                    {isAdmin && <button className="btn-ghost" onClick={() => deleteTask(task.id)}>x</button>}
+                  </div>
                 </div>
                 <div className="border-t border-white/5 pt-3 flex flex-col gap-1.5">
                   {subs.map((s:any) => (
