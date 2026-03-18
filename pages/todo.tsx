@@ -19,6 +19,13 @@ export default function TodoPage({ session }: { session: Session | null }) {
   const [myStart, setMyStart] = useState('')
   const [myDue, setMyDue] = useState('')
 
+  // Modifica task
+  const [editingTodo, setEditingTodo] = useState<any>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editPrio, setEditPrio] = useState('media')
+  const [editStart, setEditStart] = useState('')
+  const [editDue, setEditDue] = useState('')
+
   // Task team
   const [tasks, setTasks] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -71,6 +78,26 @@ export default function TodoPage({ session }: { session: Session | null }) {
     await supabase.from('team_subtasks').update({ done: !done }).eq('id', id); await loadAll()
   }
 
+  function openEdit(todo: any) {
+    setEditingTodo(todo)
+    setEditTitle(todo.title)
+    setEditPrio(todo.priority || 'media')
+    setEditStart(todo.start_date || '')
+    setEditDue(todo.due_date || '')
+  }
+
+  async function saveEdit() {
+    if (!editingTodo) return
+    await supabase.from('todos').update({
+      title: editTitle,
+      priority: editPrio,
+      start_date: editStart || null,
+      due_date: editDue || null,
+    }).eq('id', editingTodo.id)
+    setEditingTodo(null)
+    await loadAll()
+  }
+
   function handleUserSelect(idx: number, uid: string) {
     const user = users.find(u => u.id === uid)
     setSubtaskForms(prev => prev.map((f, i) => i === idx ? { ...f, userId: uid, name: user?.full_name || user?.email || '', email: user?.email || '' } : f))
@@ -116,6 +143,43 @@ export default function TodoPage({ session }: { session: Session | null }) {
 
   return (
     <Layout session={session}>
+      {/* Modal modifica */}
+      {editingTodo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="font-serif text-xl text-white mb-5">Modifica task</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="label mb-1.5">Descrizione</div>
+                <input type="text" className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+              </div>
+              <div>
+                <div className="label mb-1.5">Priorità</div>
+                <select className="input" value={editPrio} onChange={e => setEditPrio(e.target.value)}>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="bassa">Bassa</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="label mb-1.5">Inizio</div>
+                  <input type="date" className="input" value={editStart} onChange={e => setEditStart(e.target.value)} />
+                </div>
+                <div>
+                  <div className="label mb-1.5">Scadenza</div>
+                  <input type="date" className="input" value={editDue} onChange={e => setEditDue(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button className="btn-primary flex-1" onClick={saveEdit}>Salva</button>
+              <button className="btn-secondary flex-1" onClick={() => setEditingTodo(null)}>Annulla</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <h1 className="font-serif text-3xl">Task <span className="text-accent italic">Team</span></h1>
       </div>
@@ -191,6 +255,7 @@ export default function TodoPage({ session }: { session: Session | null }) {
                   <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: PRIO_COLORS[t.priority]+'22', color: PRIO_COLORS[t.priority] }}>{t.priority}</span>
                   {t.start_date && <span className="text-xs text-muted">{t.start_date}</span>}
                   {t.due_date && <span className="text-xs text-muted">{t.due_date}</span>}
+                  <button className="btn-ghost text-muted2 hover:text-accent transition-colors" onClick={() => openEdit(t)} title="Modifica">✏️</button>
                   <button className="btn-ghost" onClick={() => deleteTodo(t.id)}>x</button>
                 </div>
               ))
