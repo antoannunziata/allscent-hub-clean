@@ -47,8 +47,6 @@ export default function Dashboard({ session }: { session: Session | null }) {
   }, [profile])
 
   async function loadSuperAdminData() {
-    const uname = session?.user?.user_metadata?.full_name || session?.user?.email || ''
-
     // Stats generali
     const [t, g, td, s] = await Promise.all([
       supabase.from('trade_activities').select('id', { count: 'exact', head: true }),
@@ -73,25 +71,47 @@ export default function Dashboard({ session }: { session: Session | null }) {
       ...(upInt || []).map((a: any) => ({ label: `${a.tipo_label || a.tipo} inizia`, date: a.start_date, color: '#fb923c' })),
     ].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5))
 
-    // Todo aperti per persona — raggruppati
-    const { data: allTodos } = await supabase.from('todos').select('*').eq('done', false).order('due_date')
-    const { data: allProfiles } = await supabase.from('profiles').select('id, full_name, email, departments')
+    // Carica todos personali + team subtasks + profili
+    const [{ data: allTodos }, { data: allSubtasks }, { data: allProfiles }] = await Promise.all([
+      supabase.from('todos').select('*').eq('done', false).order('due_date'),
+      supabase.from('team_subtasks').select('*').eq('done', false),
+      supabase.from('profiles').select('id, full_name, email, departments'),
+    ])
 
-    // Mappa nome → dipartimento
-    const nameTodept: Record<string, string> = {}
+    // Mappa id → profilo e nome → dipartimento
+    const idToProfile: Record<string, any> = {}
+    const nameToDept: Record<string, string> = {}
     ;(allProfiles || []).forEach((p: any) => {
+      idToProfile[p.id] = p
       const name = p.full_name || p.email || ''
-      const dept = p.departments?.[0] || 'marketing'
-      nameTodept[name] = dept
+      if (name) nameToDept[name] = p.departments?.[0] || 'marketing'
     })
 
-    // Raggruppa todo per dipartimento
+    // Raggruppa per dipartimento
     const grouped: Record<string, any[]> = {}
+
+    // Todos personali — assigned_to è il nome
     ;(allTodos || []).forEach((t: any) => {
-      const dept = nameTodept[t.assigned_to] || 'marketing'
+      const dept = nameToDept[t.assigned_to] || 'marketing'
       if (!grouped[dept]) grouped[dept] = []
-      grouped[dept].push(t)
+      grouped[dept].push({ ...t })
     })
+
+    // Team subtasks — assigned_to è UUID
+    ;(allSubtasks || []).forEach((s: any) => {
+      const p = idToProfile[s.assigned_to]
+      const dept = p?.departments?.[0] || 'marketing'
+      const name = p?.full_name || p?.email || s.assigned_name || 'Sconosciuto'
+      if (!grouped[dept]) grouped[dept] = []
+      grouped[dept].push({
+        id: s.id,
+        title: s.title,
+        assigned_to: name,
+        priority: 'media',
+        due_date: null,
+      })
+    })
+
     setDeptTodos(grouped)
     setTodos((allTodos || []).slice(0, 5))
   }
@@ -168,7 +188,6 @@ export default function Dashboard({ session }: { session: Session | null }) {
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {Object.entries(deptTodos).map(([dept, items]) => {
-              // Raggruppa per persona
               const byPerson: Record<string, { name: string; count: number; todos: any[] }> = {}
               items.forEach((t: any) => {
                 const key = t.assigned_to || 'Non assegnato'
@@ -227,7 +246,7 @@ export default function Dashboard({ session }: { session: Session | null }) {
         </div>
       )}
 
-      {/* Scadenze + Task — layout normale */}
+      {/* Scadenze + Task */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {upcoming.length > 0 && (
           <div className="card">
@@ -244,7 +263,6 @@ export default function Dashboard({ session }: { session: Session | null }) {
             ))}
           </div>
         )}
-
         {!isSuperAdmin && (
           <div className="card">
             <div className="flex items-center gap-2 mb-4">
