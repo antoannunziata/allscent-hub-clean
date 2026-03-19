@@ -123,9 +123,9 @@ export default function TeamPage({ session }: { session: Session | null }) {
     URL.revokeObjectURL(url)
   }
 
-  const ruoliUniq = [...new Set(risorse.map(r => r.ruolo).filter(Boolean))]
-  const statiUniq = [...new Set(risorse.map(r => r.stato).filter(Boolean))]
-  const contrattiUniq = [...new Set(risorse.map(r => r.contratto).filter(Boolean))]
+const ruoliUniq = risorse.map(r => r.ruolo).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+const statiUniq = risorse.map(r => r.stato).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+const contrattiUniq = risorse.map(r => r.contratto).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
 
   return (
     <Layout session={session}>
