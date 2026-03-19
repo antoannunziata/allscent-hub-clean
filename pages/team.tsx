@@ -77,25 +77,27 @@ export default function TeamPage({ session }: { session: Session | null }) {
     setShowForm(true)
   }
 
-  async function save() {
-    setSaving(true)
-    const payload = {
-      ...form,
-      data_assunzione: form.data_assunzione || null,
-      data_cessazione: form.data_cessazione || null,
-      motivo_cessazione: form.motivo_cessazione || null,
-    }
-    if (editingId) {
-      await supabase.from('risorse').update(payload).eq('id', editingId)
-    } else {
-      await supabase.from('risorse').insert(payload)
-    }
-    // Aggiorna pdv_id
-    await supabase.rpc('update_risorsa_pdv_id').catch(() => {})
-    setShowForm(false)
-    await loadAll()
-    setSaving(false)
+ async function save() {
+  setSaving(true)
+  const payload = {
+    ...form,
+    data_assunzione: form.data_assunzione || null,
+    data_cessazione: form.data_cessazione || null,
+    motivo_cessazione: form.motivo_cessazione || null,
   }
+  if (editingId) {
+    await supabase.from('risorse').update(payload).eq('id', editingId)
+  } else {
+    await supabase.from('risorse').insert(payload)
+  }
+  const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
+  for (const pv of pvs || []) {
+    await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
+  }
+  setShowForm(false)
+  await loadAll()
+  setSaving(false)
+}
 
   async function deleteRisorsa(id: string) {
     if (!confirm('Eliminare questa risorsa?')) return
