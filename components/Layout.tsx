@@ -14,34 +14,34 @@ const DEPARTMENTS = [
 
 const NAV_BY_DEPT: Record<string, { href: string; icon: string; label: string; section?: string }[]> = {
   marketing: [
-    { href: '/dashboard',  icon: '🏠', label: 'Home' },
-    { href: '/calendar',   icon: '📅', label: 'Calendario' },
-    { href: '/todo',       icon: '✅', label: 'To-do / Task',       section: 'Task' },
-    { href: '/trade',      icon: '💄', label: 'Visibilità Trade',   section: 'Attività' },
-    { href: '/giornate',   icon: '👤', label: 'Giornate PDV' },
-    { href: '/internal',   icon: '🎯', label: 'Attività Interne' },
-    { href: '/social',     icon: '📱', label: 'Social' },
-    { href: '/budget',     icon: '💶', label: 'Budget Brand',       section: 'Report' },
-    { href: '/pdv',        icon: '🏪', label: 'Vista PDV' },
+    { href: '/dashboard', icon: '🏠', label: 'Home' },
+    { href: '/calendar',  icon: '📅', label: 'Calendario' },
+    { href: '/todo',      icon: '✅', label: 'To-do / Task',      section: 'Task' },
+    { href: '/trade',     icon: '💄', label: 'Visibilità Trade',  section: 'Attività' },
+    { href: '/giornate',  icon: '👤', label: 'Giornate PDV' },
+    { href: '/internal',  icon: '🎯', label: 'Attività Interne' },
+    { href: '/social',    icon: '📱', label: 'Social' },
+    { href: '/budget',    icon: '💶', label: 'Budget Brand',      section: 'Report' },
+    { href: '/pdv',       icon: '🏪', label: 'Vista PDV' },
   ],
   acquisti: [
-    { href: '/dashboard',  icon: '🏠', label: 'Home' },
-    { href: '/calendar',   icon: '📅', label: 'Calendario' },
-    { href: '/todo',       icon: '✅', label: 'To-do / Task',       section: 'Task' },
+    { href: '/dashboard', icon: '🏠', label: 'Home' },
+    { href: '/calendar',  icon: '📅', label: 'Calendario' },
+    { href: '/todo',      icon: '✅', label: 'To-do / Task', section: 'Task' },
   ],
   contabilita: [
+    { href: '/dashboard', icon: '🏠', label: 'Home' },
+    { href: '/calendar',  icon: '📅', label: 'Calendario' },
+    { href: '/todo',      icon: '✅', label: 'To-do / Task', section: 'Task' },
+  ],
+  hr: [
     { href: '/dashboard',  icon: '🏠', label: 'Home' },
     { href: '/calendar',   icon: '📅', label: 'Calendario' },
-    { href: '/todo',       icon: '✅', label: 'To-do / Task',       section: 'Task' },
+    { href: '/todo',       icon: '✅', label: 'To-do / Task',  section: 'Task' },
+    { href: '/team',       icon: '👥', label: 'Anagrafica',    section: 'Risorse' },
+    { href: '/stato-pdv',  icon: '🏪', label: 'Stato PDV' },
+    { href: '/selezione',  icon: '🔍', label: 'Selezione' },
   ],
- hr: [
-  { href: '/dashboard',  icon: '🏠', label: 'Home' },
-  { href: '/calendar',   icon: '📅', label: 'Calendario' },
-  { href: '/todo',       icon: '✅', label: 'To-do / Task',    section: 'Task' },
-  { href: '/team',       icon: '👥', label: 'Anagrafica',      section: 'Risorse' },
-  { href: '/pdv',        icon: '🏪', label: 'Stato PDV' },
-  { href: '/selezione',  icon: '🔍', label: 'Selezione' },
-],
 }
 
 export default function Layout({
@@ -55,7 +55,7 @@ export default function Layout({
 }) {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(profileProp || null)
-  const [activeDept, setActiveDept] = useState<string>('marketing')
+  const [activeDept, setActiveDept] = useState<string | null>(null)
 
   useEffect(() => {
     if (profileProp) { setProfile(profileProp); return }
@@ -80,10 +80,22 @@ export default function Layout({
 
   if (!session) { router.push('/login'); return null }
 
-  const isSuperAdmin = profile?.role === 'superadmin'
-  const availableDepts = isSuperAdmin
-    ? DEPARTMENTS
-    : DEPARTMENTS.filter(d => profile?.departments?.includes(d.id))
+  // Aspetta che il profilo sia caricato prima di mostrare il menu
+  if (!profile || activeDept === null) {
+    return (
+      <div className="flex min-h-screen bg-bg">
+        <aside className="w-56 fixed top-0 left-0 h-screen bg-surface border-r border-white/5 flex flex-col z-50">
+          <div className="px-5 pt-5 pb-4 border-b border-white/5">
+            <div className="font-serif text-lg text-accent">AllScent</div>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-xs text-muted">Caricamento...</div>
+          </div>
+        </aside>
+        <main className="ml-56 flex-1 p-7 max-w-[1400px]">{children}</main>
+      </div>
+    )
+  }
 
   if (profile?.role === 'pending') {
     return (
@@ -105,6 +117,11 @@ export default function Layout({
       </div>
     )
   }
+
+  const isSuperAdmin = profile?.role === 'superadmin'
+  const availableDepts = isSuperAdmin
+    ? DEPARTMENTS
+    : DEPARTMENTS.filter(d => profile?.departments?.includes(d.id))
 
   const navItems = NAV_BY_DEPT[activeDept] || NAV_BY_DEPT.marketing
   const initials = (profile?.full_name || session?.user?.email || 'U')
