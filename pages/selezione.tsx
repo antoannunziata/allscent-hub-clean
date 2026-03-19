@@ -1,5 +1,4 @@
-Eccolo! Vai su github.com/antoannunziata/allscent-hub-clean/blob/main/pages/selezione.tsx → ✏️ → seleziona tutto → incolla:
-tsximport { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
 import type { Session } from '@supabase/supabase-js'
@@ -14,9 +13,9 @@ function giorniDa(data: string) {
 }
 
 function durataStr(giorni: number) {
-  if (giorni < 7) return `${giorni}gg`
-  if (giorni < 30) return `${Math.floor(giorni / 7)} sett.`
-  return `${Math.floor(giorni / 30)} mesi`
+  if (giorni < 7) return giorni + 'gg'
+  if (giorni < 30) return Math.floor(giorni / 7) + ' sett.'
+  return Math.floor(giorni / 30) + ' mesi'
 }
 
 export default function SelezionePage({ session }: { session: Session | null }) {
@@ -79,7 +78,7 @@ export default function SelezionePage({ session }: { session: Session | null }) 
   }
 
   async function deleteSelezione(id: string) {
-    if (!confirm('Eliminare definitivamente questa selezione?')) return
+    if (!confirm('Eliminare questa selezione?')) return
     await supabase.from('selezioni').delete().eq('id', id)
     await loadAll()
   }
@@ -134,21 +133,21 @@ export default function SelezionePage({ session }: { session: Session | null }) 
               <div>
                 <div className="label mb-1.5">Punto vendita *</div>
                 <select className="input" value={selForm.pdv_nome} onChange={e => setSelForm({...selForm, pdv_nome: e.target.value})}>
-                  <option value="">— Seleziona PDV —</option>
+                  <option value="">Seleziona PDV</option>
                   {pdvList.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
                 </select>
               </div>
               <div>
                 <div className="label mb-1.5">Ruolo cercato *</div>
                 <select className="input" value={selForm.ruolo} onChange={e => setSelForm({...selForm, ruolo: e.target.value})}>
-                  <option value="">— Seleziona ruolo —</option>
+                  <option value="">Seleziona ruolo</option>
                   {RUOLI_SELEZIONE.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>
-                <div className="label mb-1.5">Motivo apertura</div>
+                <div className="label mb-1.5">Motivo</div>
                 <select className="input" value={selForm.motivo} onChange={e => setSelForm({...selForm, motivo: e.target.value})}>
-                  <option value="">— Seleziona motivo —</option>
+                  <option value="">Seleziona motivo</option>
                   {MOTIVI.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
@@ -176,14 +175,12 @@ export default function SelezionePage({ session }: { session: Session | null }) 
       </div>
 
       <div className="flex gap-2 mb-6">
-        <button onClick={() => setTab('aperte')}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${tab === 'aperte' ? 'bg-accent text-black border-accent' : 'bg-transparent text-muted2 border-white/10 hover:border-accent/50'}`}>
-          Aperte ({aperte.length})
-        </button>
-        <button onClick={() => setTab('archivio')}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${tab === 'archivio' ? 'bg-accent text-black border-accent' : 'bg-transparent text-muted2 border-white/10 hover:border-accent/50'}`}>
-          Archivio ({archiviate.length})
-        </button>
+        {(['aperte', 'archivio'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={'px-5 py-2 rounded-lg text-sm font-semibold border transition-all cursor-pointer ' + (tab === t ? 'bg-accent text-black border-accent' : 'bg-transparent text-muted2 border-white/10 hover:border-accent/50')}>
+            {t === 'aperte' ? 'Aperte (' + aperte.length + ')' : 'Archivio (' + archiviate.length + ')'}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -198,7 +195,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
         const colloquiFatti = cands.filter((c: any) => c.colloquio_fatto).length
         const isExpanded = selectedSel === sel.id
         const assunto = cands.find((c: any) => c.assunto)
-
         return (
           <div key={sel.id} className="card mb-4">
             <div className="flex items-start justify-between mb-3">
@@ -207,29 +203,25 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                   <span className="font-semibold text-base">{sel.pdv_nome}</span>
                   <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full font-semibold">{sel.ruolo}</span>
                   {sel.stato === 'chiusa' && (
-                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-semibold">✓ Chiusa</span>
+                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-semibold">Chiusa</span>
                   )}
                 </div>
                 {sel.motivo && <div className="text-xs text-muted mt-0.5">Motivo: {sel.motivo}</div>}
                 <div className="flex items-center gap-4 mt-2">
                   <span className="text-xs text-muted">
                     Aperta da{' '}
-                    <span className={`font-semibold ${giorni > 30 ? 'text-red-400' : giorni > 14 ? 'text-yellow-400' : 'text-green-400'}`}>
+                    <span className={'font-semibold ' + (giorni > 30 ? 'text-red-400' : giorni > 14 ? 'text-yellow-400' : 'text-green-400')}>
                       {durataStr(giorni)}
                     </span>
                   </span>
                   <span className="text-xs text-muted">{cands.length} candidati · {colloquiFatti} colloqui</span>
                   {sel.data_chiusura && <span className="text-xs text-muted">Chiusa: {sel.data_chiusura}</span>}
                 </div>
-                {assunto && (
-                  <div className="text-xs text-green-400 mt-1">✓ Assunto: {assunto.cognome} {assunto.nome}</div>
-                )}
+                {assunto && <div className="text-xs text-green-400 mt-1">Assunto: {assunto.cognome} {assunto.nome}</div>}
               </div>
               <div className="flex items-center gap-2 ml-3">
                 {sel.stato === 'aperta' && (
-                  <button className="btn-secondary text-xs px-3 py-1.5" onClick={() => chiudiSelezione(sel.id)}>
-                    Archivia
-                  </button>
+                  <button className="btn-secondary text-xs px-3 py-1.5" onClick={() => chiudiSelezione(sel.id)}>Archivia</button>
                 )}
                 <button className="btn-ghost hover:text-red-400" onClick={() => deleteSelezione(sel.id)}>🗑️</button>
               </div>
@@ -237,49 +229,46 @@ export default function SelezionePage({ session }: { session: Session | null }) 
 
             <button className="text-xs text-muted hover:text-white transition-colors mb-2"
               onClick={() => setSelectedSel(isExpanded ? null : sel.id)}>
-              {isExpanded ? '▲ Nascondi candidati' : `▼ Mostra candidati (${cands.length})`}
+              {isExpanded ? 'Nascondi candidati' : 'Mostra candidati (' + cands.length + ')'}
             </button>
 
             {isExpanded && (
               <div className="border-t border-white/5 pt-4">
                 {cands.length === 0 ? (
-                  <div className="text-xs text-muted mb-3">Nessun candidato inserito</div>
+                  <div className="text-xs text-muted mb-3">Nessun candidato</div>
                 ) : (
                   <div className="flex flex-col gap-3 mb-4">
                     {cands.map((c: any) => (
-                      <div key={c.id} className={`bg-surface2 rounded-xl p-4 border ${c.assunto ? 'border-green-500/30' : 'border-white/5'}`}>
+                      <div key={c.id} className={'bg-surface2 rounded-xl p-4 border ' + (c.assunto ? 'border-green-500/30' : 'border-white/5')}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <div className="font-semibold text-sm">{c.cognome} {c.nome}</div>
-                            <div className="text-xs text-muted">{c.telefono}{c.email ? ` · ${c.email}` : ''}</div>
+                            <div className="text-xs text-muted">{c.telefono}{c.email ? ' · ' + c.email : ''}</div>
                           </div>
                           <div className="flex gap-1.5 items-center">
                             {sel.stato === 'aperta' && !c.assunto && (
-                              <button className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-lg hover:bg-green-500/30 transition-colors cursor-pointer border-none"
+                              <button className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-lg border-none cursor-pointer"
                                 onClick={() => assumiCandidato(c.id, sel.id)}>
-                                ✓ Assumi
+                                Assumi
                               </button>
                             )}
-                            {c.assunto && <span className="text-xs text-green-400 font-semibold">✓ Assunto</span>}
+                            {c.assunto && <span className="text-xs text-green-400 font-semibold">Assunto</span>}
                             <button className="btn-ghost hover:text-red-400 text-xs" onClick={() => deleteCandidato(c.id)}>🗑️</button>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           {[
-                            { key: 'colloquio_fatto', label: '📞 Colloquio fatto' },
-                            { key: 'fase_superata', label: '✅ Fase superata' },
-                            { key: 'documenti_richiesti', label: '📄 Documenti richiesti' },
-                            { key: 'documenti_ricevuti', label: '📬 Documenti ricevuti' },
+                            { key: 'colloquio_fatto', label: 'Colloquio fatto' },
+                            { key: 'fase_superata', label: 'Fase superata' },
+                            { key: 'documenti_richiesti', label: 'Documenti richiesti' },
+                            { key: 'documenti_ricevuti', label: 'Documenti ricevuti' },
                           ].map(({ key, label }) => (
                             <button key={key}
-                              onClick={() => sel.stato === 'aperta' && toggleCandidato(c.id, key, !c[key])}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all border cursor-pointer text-left ${
-                                c[key]
-                                  ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                                  : 'bg-surface3 border-white/5 text-muted2 hover:border-white/20'
-                              } ${sel.stato === 'chiusa' ? 'opacity-60 cursor-default' : ''}`}>
-                              <div className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${c[key] ? 'bg-green-400 border-green-400' : 'border-white/30'}`}>
-                                {c[key] && <span className="text-black text-[8px] font-bold">✓</span>}
+                              disabled={sel.stato === 'chiusa'}
+                              onClick={() => toggleCandidato(c.id, key, !c[key])}
+                              className={'flex items-center gap-2 px-3 py-2 rounded-lg text-xs border cursor-pointer text-left ' + (c[key] ? 'bg-green-500/15 border-green-500/30 text-green-400' : 'bg-surface3 border-white/5 text-muted2')}>
+                              <div className={'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ' + (c[key] ? 'bg-green-400 border-green-400' : 'border-white/30')}>
+                                {c[key] && <span className="text-black text-[8px] font-bold">v</span>}
                               </div>
                               {label}
                             </button>
@@ -290,8 +279,8 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                             <span className="text-xs text-muted">Data colloquio:</span>
                             <input type="date" className="input text-xs py-1 px-2 w-36"
                               value={c.colloquio_data || ''}
-                              onChange={e => sel.stato === 'aperta' && updateColloquioData(c.id, e.target.value)}
-                              disabled={sel.stato === 'chiusa'} />
+                              disabled={sel.stato === 'chiusa'}
+                              onChange={e => updateColloquioData(c.id, e.target.value)} />
                           </div>
                         )}
                         {c.note && <div className="text-xs text-muted mt-2 italic">{c.note}</div>}
@@ -299,7 +288,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                     ))}
                   </div>
                 )}
-
                 {sel.stato === 'aperta' && (
                   showCandForm === sel.id ? (
                     <div className="bg-surface2 rounded-xl p-4 border border-white/10">
