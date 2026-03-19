@@ -16,12 +16,12 @@ const NAV_BY_DEPT: Record<string, { href: string; icon: string; label: string; s
   marketing: [
     { href: '/dashboard', icon: '🏠', label: 'Home' },
     { href: '/calendar',  icon: '📅', label: 'Calendario' },
-    { href: '/todo',      icon: '✅', label: 'To-do / Task',      section: 'Task' },
-    { href: '/trade',     icon: '💄', label: 'Visibilità Trade',  section: 'Attività' },
+    { href: '/todo',      icon: '✅', label: 'To-do / Task',     section: 'Task' },
+    { href: '/trade',     icon: '💄', label: 'Visibilità Trade', section: 'Attività' },
     { href: '/giornate',  icon: '👤', label: 'Giornate PDV' },
     { href: '/internal',  icon: '🎯', label: 'Attività Interne' },
     { href: '/social',    icon: '📱', label: 'Social' },
-    { href: '/budget',    icon: '💶', label: 'Budget Brand',      section: 'Report' },
+    { href: '/budget',    icon: '💶', label: 'Budget Brand',     section: 'Report' },
     { href: '/pdv',       icon: '🏪', label: 'Vista PDV' },
   ],
   acquisti: [
@@ -35,12 +35,12 @@ const NAV_BY_DEPT: Record<string, { href: string; icon: string; label: string; s
     { href: '/todo',      icon: '✅', label: 'To-do / Task', section: 'Task' },
   ],
   hr: [
-    { href: '/dashboard',  icon: '🏠', label: 'Home' },
-    { href: '/calendar',   icon: '📅', label: 'Calendario' },
-    { href: '/todo',       icon: '✅', label: 'To-do / Task',  section: 'Task' },
-    { href: '/team',       icon: '👥', label: 'Anagrafica',    section: 'Risorse' },
-    { href: '/stato-pdv',  icon: '🏪', label: 'Stato PDV' },
-    { href: '/selezione',  icon: '🔍', label: 'Selezione' },
+    { href: '/dashboard', icon: '🏠', label: 'Home' },
+    { href: '/calendar',  icon: '📅', label: 'Calendario' },
+    { href: '/todo',      icon: '✅', label: 'To-do / Task', section: 'Task' },
+    { href: '/team',      icon: '👥', label: 'Anagrafica',   section: 'Risorse' },
+    { href: '/pdv',       icon: '🏪', label: 'Stato PDV' },
+    { href: '/selezione', icon: '🔍', label: 'Selezione' },
   ],
 }
 
@@ -55,47 +55,60 @@ export default function Layout({
 }) {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(profileProp || null)
-  const [activeDept, setActiveDept] = useState<string | null>(null)
+  const [activeDept, setActiveDept] = useState<string>('marketing')
+  const [profileLoaded, setProfileLoaded] = useState(false)
 
+  // Carica profilo
   useEffect(() => {
-    if (profileProp) { setProfile(profileProp); return }
+    if (profileProp) {
+      setProfile(profileProp)
+      setProfileLoaded(true)
+      return
+    }
     if (!session) return
     supabase
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
       .single()
-      .then(({ data }) => { if (data) setProfile(data as Profile) })
+      .then(({ data }) => {
+        if (data) {
+          setProfile(data as Profile)
+          setProfileLoaded(true)
+        }
+      })
   }, [session, profileProp])
 
+  // Setta il dipartimento solo quando il profilo viene caricato per la prima volta
   useEffect(() => {
-    if (!profile) return
+    if (!profile || !profileLoaded) return
     const isSuperAdmin = profile.role === 'superadmin'
-    const depts = isSuperAdmin
-      ? DEPARTMENTS
-      : DEPARTMENTS.filter(d => profile.departments?.includes(d.id))
-    const first = depts[0]?.id || 'marketing'
-    setActiveDept(first)
-  }, [profile])
+    const allowedDepts = isSuperAdmin
+      ? DEPARTMENTS.map(d => d.id)
+      : (profile.departments || [])
+
+    // Prova a recuperare il dipartimento salvato
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('allscent_dept_' + profile.id) : null
+
+    if (saved && allowedDepts.includes(saved)) {
+      setActiveDept(saved)
+    } else {
+      const first = allowedDepts[0] || 'marketing'
+      setActiveDept(first)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('allscent_dept_' + profile.id, first)
+      }
+    }
+  }, [profileLoaded])
+
+  function changeDept(dept: string) {
+    setActiveDept(dept)
+    if (profile && typeof window !== 'undefined') {
+      localStorage.setItem('allscent_dept_' + profile.id, dept)
+    }
+  }
 
   if (!session) { router.push('/login'); return null }
-
-  // Aspetta che il profilo sia caricato prima di mostrare il menu
-  if (!profile || activeDept === null) {
-    return (
-      <div className="flex min-h-screen bg-bg">
-        <aside className="w-56 fixed top-0 left-0 h-screen bg-surface border-r border-white/5 flex flex-col z-50">
-          <div className="px-5 pt-5 pb-4 border-b border-white/5">
-            <div className="font-serif text-lg text-accent">AllScent</div>
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-xs text-muted">Caricamento...</div>
-          </div>
-        </aside>
-        <main className="ml-56 flex-1 p-7 max-w-[1400px]">{children}</main>
-      </div>
-    )
-  }
 
   if (profile?.role === 'pending') {
     return (
@@ -205,7 +218,7 @@ export default function Layout({
               <div className="text-[9px] uppercase tracking-[1.5px] text-muted mb-1 font-semibold">Ufficio attivo</div>
               <select
                 value={activeDept}
-                onChange={e => setActiveDept(e.target.value)}
+                onChange={e => changeDept(e.target.value)}
                 className="w-full text-xs bg-surface2 border border-white/10 rounded-lg px-2 py-1.5 text-white cursor-pointer"
               >
                 {availableDepts.map(d => (
