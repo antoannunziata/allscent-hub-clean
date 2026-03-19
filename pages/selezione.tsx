@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+Eccolo! Vai su github.com/antoannunziata/allscent-hub-clean/blob/main/pages/selezione.tsx → ✏️ → seleziona tutto → incolla:
+tsximport { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
 import type { Session } from '@supabase/supabase-js'
@@ -25,15 +26,10 @@ export default function SelezionePage({ session }: { session: Session | null }) 
   const [loading, setLoading] = useState(true)
   const [selectedSel, setSelectedSel] = useState<string | null>(null)
   const [candidati, setCandidati] = useState<Record<string, any[]>>({})
-
-  // Form nuova selezione
   const [showForm, setShowForm] = useState(false)
   const [selForm, setSelForm] = useState({ pdv_nome: '', ruolo: '', motivo: '', note: '' })
-
-  // Form nuovo candidato
   const [showCandForm, setShowCandForm] = useState<string | null>(null)
   const [candForm, setCandForm] = useState({ nome: '', cognome: '', telefono: '', email: '', note: '' })
-
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { loadAll() }, [])
@@ -46,8 +42,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
     ])
     setSelezioni(s || [])
     setPdvList(p || [])
-
-    // Carica candidati per tutte le selezioni
     if (s && s.length > 0) {
       const { data: c } = await supabase.from('candidati').select('*').order('created_at')
       const grouped: Record<string, any[]> = {}
@@ -132,7 +126,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
 
   return (
     <Layout session={session}>
-      {/* Modal nuova selezione */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
@@ -177,12 +170,11 @@ export default function SelezionePage({ session }: { session: Session | null }) 
       <div className="mb-6 flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="font-serif text-3xl">Selezione <span className="text-accent italic">HR</span></h1>
-          <p className="text-muted text-sm mt-1">{aperte.length} selezioni aperte · {archiviate.length} archiviate</p>
+          <p className="text-muted text-sm mt-1">{aperte.length} aperte · {archiviate.length} archiviate</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(true)}>+ Nuova selezione</button>
       </div>
 
-      {/* Tab */}
       <div className="flex gap-2 mb-6">
         <button onClick={() => setTab('aperte')}
           className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${tab === 'aperte' ? 'bg-accent text-black border-accent' : 'bg-transparent text-muted2 border-white/10 hover:border-accent/50'}`}>
@@ -203,13 +195,12 @@ export default function SelezionePage({ session }: { session: Session | null }) 
       ) : displayed.map(sel => {
         const cands = candidati[sel.id] || []
         const giorni = giorniDa(sel.data_apertura)
-        const colloquiFatti = cands.filter(c => c.colloquio_fatto).length
+        const colloquiFatti = cands.filter((c: any) => c.colloquio_fatto).length
         const isExpanded = selectedSel === sel.id
-        const assunto = cands.find(c => c.assunto)
+        const assunto = cands.find((c: any) => c.assunto)
 
         return (
           <div key={sel.id} className="card mb-4">
-            {/* Header selezione */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -221,8 +212,13 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                 </div>
                 {sel.motivo && <div className="text-xs text-muted mt-0.5">Motivo: {sel.motivo}</div>}
                 <div className="flex items-center gap-4 mt-2">
-                  <span className="text-xs text-muted">📅 Aperta da <span className={`font-semibold ${giorni > 30 ? 'text-red-400' : giorni > 14 ? 'text-yellow-400' : 'text-green-400'}`}>{durataStr(giorni)}</span></span>
-                  <span className="text-xs text-muted">👥 {cands.length} candidati · {colloquiFatti} colloqui</span>
+                  <span className="text-xs text-muted">
+                    Aperta da{' '}
+                    <span className={`font-semibold ${giorni > 30 ? 'text-red-400' : giorni > 14 ? 'text-yellow-400' : 'text-green-400'}`}>
+                      {durataStr(giorni)}
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted">{cands.length} candidati · {colloquiFatti} colloqui</span>
                   {sel.data_chiusura && <span className="text-xs text-muted">Chiusa: {sel.data_chiusura}</span>}
                 </div>
                 {assunto && (
@@ -239,7 +235,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
               </div>
             </div>
 
-            {/* Toggle candidati */}
             <button className="text-xs text-muted hover:text-white transition-colors mb-2"
               onClick={() => setSelectedSel(isExpanded ? null : sel.id)}>
               {isExpanded ? '▲ Nascondi candidati' : `▼ Mostra candidati (${cands.length})`}
@@ -247,19 +242,18 @@ export default function SelezionePage({ session }: { session: Session | null }) 
 
             {isExpanded && (
               <div className="border-t border-white/5 pt-4">
-                {/* Lista candidati */}
                 {cands.length === 0 ? (
                   <div className="text-xs text-muted mb-3">Nessun candidato inserito</div>
                 ) : (
                   <div className="flex flex-col gap-3 mb-4">
-                    {cands.map(c => (
+                    {cands.map((c: any) => (
                       <div key={c.id} className={`bg-surface2 rounded-xl p-4 border ${c.assunto ? 'border-green-500/30' : 'border-white/5'}`}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <div className="font-semibold text-sm">{c.cognome} {c.nome}</div>
-                            <div className="text-xs text-muted">{c.telefono} {c.email && `· ${c.email}`}</div>
+                            <div className="text-xs text-muted">{c.telefono}{c.email ? ` · ${c.email}` : ''}</div>
                           </div>
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-1.5 items-center">
                             {sel.stato === 'aperta' && !c.assunto && (
                               <button className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-lg hover:bg-green-500/30 transition-colors cursor-pointer border-none"
                                 onClick={() => assumiCandidato(c.id, sel.id)}>
@@ -270,8 +264,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                             <button className="btn-ghost hover:text-red-400 text-xs" onClick={() => deleteCandidato(c.id)}>🗑️</button>
                           </div>
                         </div>
-
-                        {/* Tracking fasi */}
                         <div className="grid grid-cols-2 gap-2">
                           {[
                             { key: 'colloquio_fatto', label: '📞 Colloquio fatto' },
@@ -293,8 +285,6 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                             </button>
                           ))}
                         </div>
-
-                        {/* Data colloquio */}
                         {c.colloquio_fatto && (
                           <div className="mt-2 flex items-center gap-2">
                             <span className="text-xs text-muted">Data colloquio:</span>
@@ -304,14 +294,12 @@ export default function SelezionePage({ session }: { session: Session | null }) 
                               disabled={sel.stato === 'chiusa'} />
                           </div>
                         )}
-
                         {c.note && <div className="text-xs text-muted mt-2 italic">{c.note}</div>}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Form nuovo candidato */}
                 {sel.stato === 'aperta' && (
                   showCandForm === sel.id ? (
                     <div className="bg-surface2 rounded-xl p-4 border border-white/10">
