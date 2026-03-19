@@ -10,12 +10,31 @@ const RUOLI: Record<string, string> = {
 
 function Semaforo({ attive, target }: { attive: number; target: number }) {
   const pct = target > 0 ? attive / target : 1
-  if (pct >= 1) return <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_8px_#4ade80]" /><span className="text-xs text-green-400 font-semibold">Completo</span></div>
-  if (pct >= 0.6) return <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_#facc15]" /><span className="text-xs text-yellow-400 font-semibold">Parziale</span></div>
-  return <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_8px_#f87171]" /><span className="text-xs text-red-400 font-semibold">Scoperto</span></div>
+  if (pct >= 1) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-3 h-3 rounded-full bg-green-400" />
+        <span className="text-xs text-green-400 font-semibold">Completo</span>
+      </div>
+    )
+  }
+  if (pct >= 0.6) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-3 h-3 rounded-full bg-yellow-400" />
+        <span className="text-xs text-yellow-400 font-semibold">Parziale</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 rounded-full bg-red-400" />
+      <span className="text-xs text-red-400 font-semibold">Scoperto</span>
+    </div>
+  )
 }
 
-export default function PdvPage({ session }: { session: Session | null }) {
+export default function PdvHRPage({ session }: { session: Session | null }) {
   const [pdvList, setPdvList] = useState<any[]>([])
   const [risorse, setRisorse] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,7 +77,7 @@ export default function PdvPage({ session }: { session: Session | null }) {
   }
 
   async function deletePdv(id: string) {
-    if (!confirm('Eliminare questo PDV? Le risorse associate non verranno eliminate.')) return
+    if (!confirm('Eliminare questo PDV?')) return
     await supabase.from('punti_vendita').delete().eq('id', id)
     await loadAll()
   }
@@ -73,15 +92,14 @@ export default function PdvPage({ session }: { session: Session | null }) {
 
   return (
     <Layout session={session}>
-      {/* Modal nuovo PDV */}
       {showNewPdv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="font-serif text-xl text-white mb-5">Nuovo punto vendita</h3>
             <div className="flex flex-col gap-4">
               <div>
-                <div className="label mb-1.5">Nome / Filiale *</div>
-                <input className="input" value={newPdvForm.nome} onChange={e => setNewPdvForm({...newPdvForm, nome: e.target.value})} placeholder="es. MILANO CENTRO" />
+                <div className="label mb-1.5">Nome *</div>
+                <input className="input" value={newPdvForm.nome} onChange={e => setNewPdvForm({...newPdvForm, nome: e.target.value})} />
               </div>
               <div>
                 <div className="label mb-1.5">Città</div>
@@ -97,9 +115,7 @@ export default function PdvPage({ session }: { session: Session | null }) {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button className="btn-primary flex-1" onClick={saveNewPdv} disabled={saving}>
-                {saving ? 'Salvo...' : 'Crea PDV'}
-              </button>
+              <button className="btn-primary flex-1" onClick={saveNewPdv} disabled={saving}>{saving ? 'Salvo...' : 'Crea PDV'}</button>
               <button className="btn-secondary flex-1" onClick={() => setShowNewPdv(false)}>Annulla</button>
             </div>
           </div>
@@ -114,26 +130,21 @@ export default function PdvPage({ session }: { session: Session | null }) {
         <button className="btn-primary" onClick={() => setShowNewPdv(true)}>+ Nuovo PDV</button>
       </div>
 
-      {/* Riepilogo */}
       <div className="grid grid-cols-3 gap-4 mb-7">
         <div className="card relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-16 h-16 rounded-full blur-2xl opacity-10 bg-green-400" style={{ transform: 'translate(30%,-30%)' }} />
           <div className="font-serif text-4xl text-green-400">{pdvCompleti}</div>
           <div className="text-xs uppercase tracking-wider text-muted mt-2">PDV completi 🟢</div>
         </div>
         <div className="card relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-16 h-16 rounded-full blur-2xl opacity-10 bg-yellow-400" style={{ transform: 'translate(30%,-30%)' }} />
           <div className="font-serif text-4xl text-yellow-400">{pdvList.length - pdvCompleti - pdvScoperti}</div>
           <div className="text-xs uppercase tracking-wider text-muted mt-2">PDV parziali 🟡</div>
         </div>
         <div className="card relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-16 h-16 rounded-full blur-2xl opacity-10 bg-red-400" style={{ transform: 'translate(30%,-30%)' }} />
           <div className="font-serif text-4xl text-red-400">{pdvScoperti}</div>
           <div className="text-xs uppercase tracking-wider text-muted mt-2">PDV scoperti 🔴</div>
         </div>
       </div>
 
-      {/* Lista PDV */}
       {loading ? (
         <div className="card text-center py-12 text-muted">Caricamento...</div>
       ) : (
@@ -144,7 +155,6 @@ export default function PdvPage({ session }: { session: Session | null }) {
             const target = pdv.target_risorse
             const pct = target > 0 ? Math.min(attive / target, 1) : 1
             const isExpanded = selectedPdv === pdv.id
-
             return (
               <div key={pdv.id} className="card">
                 <div className="flex items-start justify-between mb-3">
@@ -154,20 +164,13 @@ export default function PdvPage({ session }: { session: Session | null }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Semaforo attive={attive} target={target} />
-                    <button className="btn-ghost text-muted hover:text-red-400" onClick={() => deletePdv(pdv.id)}>🗑️</button>
+                    <button className="btn-ghost hover:text-red-400" onClick={() => deletePdv(pdv.id)}>🗑️</button>
                   </div>
                 </div>
-
-                {/* Barra progresso */}
                 <div className="h-1.5 bg-surface3 rounded-full overflow-hidden mb-3">
                   <div className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${pct * 100}%`,
-                      background: pct >= 1 ? '#4ade80' : pct >= 0.6 ? '#facc15' : '#f87171'
-                    }} />
+                    style={{ width: `${pct * 100}%`, background: pct >= 1 ? '#4ade80' : pct >= 0.6 ? '#facc15' : '#f87171' }} />
                 </div>
-
-                {/* Target */}
                 <div className="flex items-center justify-between text-sm mb-3">
                   <span className="text-muted2">{attive} / {target} risorse</span>
                   {editingTarget === pdv.id ? (
@@ -184,17 +187,14 @@ export default function PdvPage({ session }: { session: Session | null }) {
                     </button>
                   )}
                 </div>
-
-                {/* Toggle risorse */}
                 <button className="text-xs text-muted hover:text-white transition-colors w-full text-left"
                   onClick={() => setSelectedPdv(isExpanded ? null : pdv.id)}>
                   {isExpanded ? '▲ Nascondi risorse' : `▼ Mostra risorse (${attive})`}
                 </button>
-
                 {isExpanded && (
                   <div className="mt-3 border-t border-white/5 pt-3 flex flex-col gap-2">
                     {risorsePdv.length === 0 ? (
-                      <div className="text-xs text-muted">Nessuna risorsa attiva assegnata</div>
+                      <div className="text-xs text-muted">Nessuna risorsa attiva</div>
                     ) : risorsePdv.map(r => (
                       <div key={r.id} className="flex items-center gap-2.5">
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-accent/60 to-purple-400/60 flex items-center justify-center text-[10px] font-bold text-black flex-shrink-0">
