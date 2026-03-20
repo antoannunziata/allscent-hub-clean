@@ -1,4 +1,3 @@
-Eccolo — copia solo questo blocco e incolla tutto in team.tsx:
 tsximport { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
