@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
 import type { Session } from '@supabase/supabase-js'
-import * as XLSX from 'xlsx'
 
 const RUOLI: Record<string, string> = {
   SM: 'Store Manager', AV: 'Assistente Vendita', HR: 'Risorse Umane',
@@ -120,8 +119,8 @@ export default function TeamPage({ session }: { session: Session | null }) {
     await loadAll()
   }
 
-  function exportExcel() {
-    const headers = ['Codice', 'Cognome', 'Nome', 'CF', 'PDV', 'Mansione', 'Contratto', 'Scad. Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
+  function exportCSV() {
+    const headers = ['Codice', 'Cognome', 'Nome', 'CF', 'PDV', 'Mansione', 'Contratto', 'Scad.Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
     const rows = filtered.map(r => [
       r.codice_dipendente || '', r.cognome, r.nome,
       r.codice_fiscale || '', r.pdv_nome || '',
@@ -130,10 +129,50 @@ export default function TeamPage({ session }: { session: Session | null }) {
       r.data_assunzione || '', r.data_cessazione || '',
       r.stato, r.motivo_cessazione || '', r.telefono || '', r.email || ''
     ])
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Risorse')
-    XLSX.writeFile(wb, `anagrafica_risorse_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const csv = [headers, ...rows].map(r => r.map((c: any) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'anagrafica_risorse_' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function parseDate(val: string): string | null {
+    if (!val) return null
+    const s = val.trim()
+    if (!s) return null
+    const it = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (it) return it[3] + '-' + it[2].padStart(2, '0') + '-' + it[1].padStart(2, '0')
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+    return null
+  }
+
+  function normalizeStato(val: string): string {
+    const s = (val || '').toLowerCase().trim()
+    if (s.includes('cess')) return 'cessato'
+    if (s.includes('mater')) return 'maternita'
+    if (s.includes('cong')) return 'congedo'
+    return 'attivo'
+  }
+
+  function parseCSVLine(line: string): string[] {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if ((line[i] === ',' || line[i] === ';') && !inQuotes) {
+        result.push(current.trim()); current = ''
+      } else {
+        current += line[i]
+      }
+    }
+    result.push(current.trim())
+    return result
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -142,16 +181,14 @@ export default function TeamPage({ session }: { session: Session | null }) {
     setImporting(true)
     setImportResult(null)
     try {
-      const buffer = await file.arrayBuffer()
-      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
-      if (rows.length < 2) {
+      const text = await file.text()
+      const lines = text.split(/\r?\n/).filter(l => l.trim())
+      if (lines.length < 2) {
         setImportResult('Il file è vuoto.')
         setImporting(false)
         return
       }
-      const headers: string[] = rows[0].map((h: any) => String(h || '').toUpperCase().trim())
+      const headers = parseCSVLine(lines[0]).map(h => h.toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim())
       const col = (names: string[]) => {
         for (const n of names) {
           const idx = headers.findIndex(h => h.includes(n))
@@ -159,81 +196,69 @@ export default function TeamPage({ session }: { session: Session | null }) {
         }
         return -1
       }
-      const iCodice     = col(['CODICE DIPENDENTE', 'CODICE'])
-      const iCognome    = col(['COGNOME'])
-      const iNome       = col(['NOME'])
-      const iCF         = col(['CODICE FISCALE', 'CF'])
+      const iCodice    = col(['CODICE DIPENDENTE', 'CODICE'])
+      const iCognome   = col(['COGNOME'])
+      const iNome      = col(['NOME'])
+      const iCF        = col(['CODICE FISCALE', 'CF'])
       const iAssunzione = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
       const iCessazione = col(['DATA CESSAZIONE', 'CESSAZIONE'])
-      const iFiliale    = col(['FILIALE', 'PDV'])
-      const iScadenza   = col(['SCADENZA CONTRATTO', 'SCADENZA'])
-      const iMansione   = col(['MANSIONE'])
-      const iEmail      = col(['EMAIL', 'MAIL'])
-      const iTelefono   = col(['NUM TELEFONO', 'TELEFONO', 'CELL', 'TEL'])
-      const iStato      = col(['STATO'])
+      const iFiliale   = col(['FILIALE', 'PDV'])
+      const iScadenza  = col(['SCADENZA CONTRATTO', 'SCADENZA'])
+      const iMansione  = col(['MANSIONE'])
+      const iEmail     = col(['EMAIL', 'MAIL'])
+      const iTelefono  = col(['NUM TELEFONO', 'TELEFONO', 'CELL', 'TEL'])
+      const iStato     = col(['STATO'])
+
       if (iCognome === -1 || iNome === -1) {
         setImportResult('Colonne COGNOME e NOME non trovate.')
         setImporting(false)
         return
       }
-      function parseDate(val: any): string | null {
-        if (!val) return null
-        if (val instanceof Date) return val.toISOString().slice(0, 10)
-        const s = String(val).trim()
-        if (!s) return null
-        const it = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-        if (it) return `${it[3]}-${it[2].padStart(2, '0')}-${it[1].padStart(2, '0')}`
-        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
-        return null
-      }
-      function normalizeStato(val: any): string {
-        const s = String(val || '').toLowerCase().trim()
-        if (s.includes('cess')) return 'cessato'
-        if (s.includes('mater')) return 'maternita'
-        if (s.includes('cong')) return 'congedo'
-        return 'attivo'
-      }
-      const dataRows = rows.slice(1).filter(r => r[iCognome] || r[iNome])
+
+      const dataRows = lines.slice(1).map(l => parseCSVLine(l)).filter(r => r[iCognome] || r[iNome])
+
       const pdvNomi = dataRows
-        .map(r => iFiliale !== -1 ? String(r[iFiliale] || '').trim() : '')
+        .map(r => iFiliale !== -1 ? (r[iFiliale] || '').trim() : '')
         .filter(Boolean)
         .filter((v, i, a) => a.indexOf(v) === i)
+
       for (const pdvNome of pdvNomi) {
         if (!pdvList.find(p => p.nome === pdvNome)) {
           await supabase.from('punti_vendita').insert({ nome: pdvNome, target_risorse: 1 })
         }
       }
-      let inserted = 0
-      let skipped = 0
+
+      let inserted = 0, skipped = 0
       for (const row of dataRows) {
-        const cognome = String(row[iCognome] || '').trim().toUpperCase()
-        const nome = String(row[iNome] || '').trim()
+        const cognome = (row[iCognome] || '').trim().toUpperCase()
+        const nome = (row[iNome] || '').trim()
         if (!cognome && !nome) { skipped++; continue }
         const payload: any = {
           cognome,
           nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
-          codice_dipendente: iCodice !== -1 ? String(row[iCodice] || '').trim() || null : null,
-          codice_fiscale: iCF !== -1 ? String(row[iCF] || '').trim().toUpperCase() || null : null,
-          pdv_nome: iFiliale !== -1 ? String(row[iFiliale] || '').trim() || null : null,
-          mansione: iMansione !== -1 ? String(row[iMansione] || '').trim() || null : null,
-          scadenza_contratto: iScadenza !== -1 ? parseDate(row[iScadenza]) : null,
-          data_assunzione: iAssunzione !== -1 ? parseDate(row[iAssunzione]) : null,
-          data_cessazione: iCessazione !== -1 ? parseDate(row[iCessazione]) : null,
-          stato: iStato !== -1 ? normalizeStato(row[iStato]) : 'attivo',
-          telefono: iTelefono !== -1 ? String(row[iTelefono] || '').trim() || null : null,
-          email: iEmail !== -1 ? String(row[iEmail] || '').trim().toLowerCase() || null : null,
+          codice_dipendente: iCodice !== -1 ? (row[iCodice] || '').trim() || null : null,
+          codice_fiscale: iCF !== -1 ? (row[iCF] || '').trim().toUpperCase() || null : null,
+          pdv_nome: iFiliale !== -1 ? (row[iFiliale] || '').trim() || null : null,
+          mansione: iMansione !== -1 ? (row[iMansione] || '').trim() || null : null,
+          scadenza_contratto: iScadenza !== -1 ? parseDate(row[iScadenza] || '') : null,
+          data_assunzione: iAssunzione !== -1 ? parseDate(row[iAssunzione] || '') : null,
+          data_cessazione: iCessazione !== -1 ? parseDate(row[iCessazione] || '') : null,
+          stato: iStato !== -1 ? normalizeStato(row[iStato] || '') : 'attivo',
+          telefono: iTelefono !== -1 ? (row[iTelefono] || '').trim() || null : null,
+          email: iEmail !== -1 ? (row[iEmail] || '').trim().toLowerCase() || null : null,
         }
         const { error } = await supabase.from('risorse').insert(payload)
         if (error) { skipped++ } else { inserted++ }
       }
+
       const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
       for (const pv of pvs || []) {
         await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
       }
       await loadAll()
-      setImportResult(`Completata: ${inserted} inserite${skipped > 0 ? `, ${skipped} saltate` : ''}.`)
+      setImportResult('Completata: ' + inserted + ' inserite' + (skipped > 0 ? ', ' + skipped + ' saltate' : '') + '.')
     } catch {
-      setImportResult('Errore durante l\'importazione.')
+      setImportResult('Errore durante l\'importazione. Usa un file CSV.')
     }
     setImporting(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -245,7 +270,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
 
   return (
     <Layout session={session}>
-      <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+      <input ref={fileInputRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleImport} />
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -359,15 +384,15 @@ export default function TeamPage({ session }: { session: Session | null }) {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
-            {importing ? '⏳ Importando...' : '⬆️ Importa Excel'}
+            {importing ? '⏳ Importando...' : '⬆️ Importa CSV'}
           </button>
-          <button className="btn-secondary" onClick={exportExcel}>⬇️ Esporta Excel</button>
+          <button className="btn-secondary" onClick={exportCSV}>⬇️ Esporta CSV</button>
           <button className="btn-primary" onClick={openNew}>+ Nuova risorsa</button>
         </div>
       </div>
 
       {importResult && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${importResult.includes('Completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+        <div className={'mb-4 px-4 py-3 rounded-xl text-sm border flex items-center justify-between ' + (importResult.includes('Completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400')}>
           <span>{importResult}</span>
           <button className="ml-3 text-muted hover:text-white" onClick={() => setImportResult(null)}>✕</button>
         </div>
@@ -414,15 +439,15 @@ export default function TeamPage({ session }: { session: Session | null }) {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={8} className="text-center text-muted py-12">Nessuna risorsa trovata</td></tr>
             ) : filtered.map((r, i) => (
-              <tr key={r.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${i % 2 === 0 ? '' : 'bg-surface/30'}`}>
+              <tr key={r.id} className={'border-b border-white/5 hover:bg-white/[0.02] transition-colors ' + (i % 2 === 0 ? '' : 'bg-surface/30')}>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/60 to-purple-400/60 flex items-center justify-center text-[10px] font-bold text-black flex-shrink-0">
-                      {`${(r.cognome||'?')[0]}${(r.nome||'?')[0]}`.toUpperCase()}
+                      {((r.cognome||'?')[0] + (r.nome||'?')[0]).toUpperCase()}
                     </div>
                     <div>
                       <div className="text-sm font-medium">{r.cognome} {r.nome}</div>
-                      <div className="text-[11px] text-muted">{r.codice_dipendente ? `#${r.codice_dipendente}` : r.email}</div>
+                      <div className="text-[11px] text-muted">{r.codice_dipendente ? '#' + r.codice_dipendente : r.email}</div>
                     </div>
                   </div>
                 </td>
@@ -431,7 +456,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
                 <td className="px-4 py-3 text-sm text-muted2 capitalize">{r.contratto || '—'}</td>
                 <td className="px-4 py-3 text-sm text-muted2">{r.data_assunzione || '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATI_COLORS[r.stato] || STATI_COLORS.default}`}>
+                  <span className={'text-xs font-semibold px-2 py-0.5 rounded-full capitalize ' + (STATI_COLORS[r.stato] || STATI_COLORS.default)}>
                     {r.stato}
                   </span>
                 </td>
