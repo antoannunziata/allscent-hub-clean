@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
 import type { Session } from '@supabase/supabase-js'
+import * as XLSX from 'xlsx'
 
 const RUOLI: Record<string, string> = {
   SM: 'Store Manager', AV: 'Assistente Vendita', HR: 'Risorse Umane',
@@ -18,13 +19,11 @@ export default function TeamPage({ session }: { session: Session | null }) {
   const [risorse, setRisorse] = useState<any[]>([])
   const [pdvList, setPdvList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
   const [filterNome, setFilterNome] = useState('')
   const [filterPdv, setFilterPdv] = useState('')
   const [filterRuolo, setFilterRuolo] = useState('')
   const [filterStato, setFilterStato] = useState('')
   const [filterContratto, setFilterContratto] = useState('')
-
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({
@@ -33,6 +32,9 @@ export default function TeamPage({ session }: { session: Session | null }) {
     motivo_cessazione: '', telefono: '', email: '', note: ''
   })
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { loadAll() }, [])
 
@@ -59,9 +61,11 @@ export default function TeamPage({ session }: { session: Session | null }) {
 
   function openNew() {
     setEditingId(null)
-    setForm({ cognome: '', nome: '', pdv_nome: '', ruolo: '', contratto: '',
+    setForm({
+      cognome: '', nome: '', pdv_nome: '', ruolo: '', contratto: '',
       data_assunzione: '', data_cessazione: '', stato: 'attivo',
-      motivo_cessazione: '', telefono: '', email: '', note: '' })
+      motivo_cessazione: '', telefono: '', email: '', note: ''
+    })
     setShowForm(true)
   }
 
@@ -77,27 +81,27 @@ export default function TeamPage({ session }: { session: Session | null }) {
     setShowForm(true)
   }
 
- async function save() {
-  setSaving(true)
-  const payload = {
-    ...form,
-    data_assunzione: form.data_assunzione || null,
-    data_cessazione: form.data_cessazione || null,
-    motivo_cessazione: form.motivo_cessazione || null,
+  async function save() {
+    setSaving(true)
+    const payload = {
+      ...form,
+      data_assunzione: form.data_assunzione || null,
+      data_cessazione: form.data_cessazione || null,
+      motivo_cessazione: form.motivo_cessazione || null,
+    }
+    if (editingId) {
+      await supabase.from('risorse').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('risorse').insert(payload)
+    }
+    const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
+    for (const pv of pvs || []) {
+      await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
+    }
+    setShowForm(false)
+    await loadAll()
+    setSaving(false)
   }
-  if (editingId) {
-    await supabase.from('risorse').update(payload).eq('id', editingId)
-  } else {
-    await supabase.from('risorse').insert(payload)
-  }
-  const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
-  for (const pv of pvs || []) {
-    await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
-  }
-  setShowForm(false)
-  await loadAll()
-  setSaving(false)
-}
 
   async function deleteRisorsa(id: string) {
     if (!confirm('Eliminare questa risorsa?')) return
@@ -112,23 +116,141 @@ export default function TeamPage({ session }: { session: Session | null }) {
       r.contratto, r.data_assunzione || '', r.data_cessazione || '',
       r.stato, r.motivo_cessazione || '', r.telefono || '', r.email || ''
     ])
-    const csv = [headers, ...rows].map(r => r.map((c: any) => `"${c}"`).join(',')).join('\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Risorse')
     const today = new Date().toISOString().slice(0, 10)
-    a.download = `anagrafica_risorse_${today}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    XLSX.writeFile(wb, `anagrafica_risorse_${today}.xlsx`)
   }
 
-const ruoliUniq = risorse.map(r => r.ruolo).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
-const statiUniq = risorse.map(r => r.stato).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
-const contrattiUniq = risorse.map(r => r.contratto).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportResult(null)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
+
+      if (rows.length < 2) {
+        setImportResult('Il file è vuoto o non ha righe di dati.')
+        setImporting(false)
+        return
+      }
+
+      // Rileva header automaticamente (prima riga)
+      const headers: string[] = rows[0].map((h: any) => String(h || '').toUpperCase().trim())
+
+      // Mappa colonne flessibile
+      const col = (names: string[]) => {
+        for (const n of names) {
+          const idx = headers.findIndex(h => h.includes(n))
+          if (idx !== -1) return idx
+        }
+        return -1
+      }
+
+      const iCognome     = col(['COGNOME'])
+      const iNome        = col(['NOME'])
+      const iFiliale     = col(['FILIALE', 'PDV', 'PUNTO VENDITA'])
+      const iRuolo       = col(['RUOLO'])
+      const iContratto   = col(['CONTRATTO'])
+      const iAssunzione  = col(['ASSUNZIONE', 'DATA ASS'])
+      const iCessazione  = col(['CESSAZIONE', 'DATA CESS'])
+      const iStato       = col(['STATO'])
+      const iMotivo      = col(['MOTIVO'])
+      const iTelefono    = col(['CELL', 'TEL', 'TELEFONO'])
+      const iEmail       = col(['EMAIL', 'MAIL'])
+
+      if (iCognome === -1 || iNome === -1) {
+        setImportResult('Colonne COGNOME e NOME non trovate. Controlla il file.')
+        setImporting(false)
+        return
+      }
+
+      function parseDate(val: any): string | null {
+        if (!val) return null
+        if (val instanceof Date) return val.toISOString().slice(0, 10)
+        const s = String(val).trim()
+        if (!s) return null
+        // Prova formato italiano gg/mm/aaaa
+        const it = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+        if (it) return `${it[3]}-${it[2].padStart(2,'0')}-${it[1].padStart(2,'0')}`
+        // Prova ISO
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+        return null
+      }
+
+      const dataRows = rows.slice(1).filter(r => r[iCognome] || r[iNome])
+      let inserted = 0
+      let skipped = 0
+
+      // Raccoglie PDV unici e li crea se non esistono
+      const pdvNomi = [...new Set(dataRows.map(r => String(r[iFiliale] || '').trim()).filter(Boolean))] as string[]
+      for (const pdvNome of pdvNomi) {
+        const existing = pdvList.find(p => p.nome === pdvNome)
+        if (!existing) {
+          await supabase.from('punti_vendita').insert({ nome: pdvNome, target_risorse: 1 })
+        }
+      }
+
+      for (const row of dataRows) {
+        const cognome = String(row[iCognome] || '').trim()
+        const nome = String(row[iNome] || '').trim()
+        if (!cognome && !nome) { skipped++; continue }
+
+        const payload = {
+          cognome: cognome.toUpperCase(),
+          nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
+          pdv_nome: iFiliale !== -1 ? String(row[iFiliale] || '').trim() : null,
+          ruolo: iRuolo !== -1 ? String(row[iRuolo] || '').trim() : null,
+          contratto: iContratto !== -1 ? String(row[iContratto] || '').trim().toLowerCase() : null,
+          data_assunzione: iAssunzione !== -1 ? parseDate(row[iAssunzione]) : null,
+          data_cessazione: iCessazione !== -1 ? parseDate(row[iCessazione]) : null,
+          stato: iStato !== -1 ? String(row[iStato] || 'attivo').trim().toLowerCase() : 'attivo',
+          motivo_cessazione: iMotivo !== -1 ? String(row[iMotivo] || '').trim() || null : null,
+          telefono: iTelefono !== -1 ? String(row[iTelefono] || '').trim() : null,
+          email: iEmail !== -1 ? String(row[iEmail] || '').trim().toLowerCase() : null,
+        }
+
+        const { error } = await supabase.from('risorse').insert(payload)
+        if (error) { skipped++ } else { inserted++ }
+      }
+
+      // Collega pdv_id
+      const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
+      for (const pv of pvs || []) {
+        await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
+      }
+
+      await loadAll()
+      setImportResult(`Importazione completata: ${inserted} risorse inserite${skipped > 0 ? `, ${skipped} saltate` : ''}.`)
+    } catch (err) {
+      setImportResult('Errore durante l\'importazione. Controlla il formato del file.')
+    }
+
+    setImporting(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const ruoliUniq = risorse.map(r => r.ruolo).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+  const statiUniq = risorse.map(r => r.stato).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+  const contrattiUniq = risorse.map(r => r.contratto).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
 
   return (
     <Layout session={session}>
+      {/* Input file nascosto */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleImport}
+      />
+
       {/* Modal form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -223,15 +345,27 @@ const contrattiUniq = risorse.map(r => r.contratto).filter(Boolean).filter((v, i
           <h1 className="font-serif text-3xl">Anagrafica <span className="text-accent italic">Risorse</span></h1>
           <p className="text-muted text-sm mt-1">{filtered.length} di {risorse.length} risorse</p>
         </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={exportExcel}>⬇️ Esporta CSV</button>
+        <div className="flex gap-2 flex-wrap">
+          <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            {importing ? '⏳ Importando...' : '⬆️ Importa Excel'}
+          </button>
+          <button className="btn-secondary" onClick={exportExcel}>⬇️ Esporta Excel</button>
           <button className="btn-primary" onClick={openNew}>+ Nuova risorsa</button>
         </div>
       </div>
 
+      {/* Messaggio risultato import */}
+      {importResult && (
+        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border ${importResult.includes('completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+          {importResult}
+          <button className="ml-3 text-muted hover:text-white" onClick={() => setImportResult(null)}>✕</button>
+        </div>
+      )}
+
       {/* Filtri */}
       <div className="card mb-5 grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <input className="input col-span-2 lg:col-span-1" placeholder="🔍 Cerca nome..." value={filterNome} onChange={e => setFilterNome(e.target.value)} />
+        <input className="input col-span-2 lg:col-span-1" placeholder="🔍 Cerca nome..."
+          value={filterNome} onChange={e => setFilterNome(e.target.value)} />
         <select className="input" value={filterPdv} onChange={e => setFilterPdv(e.target.value)}>
           <option value="">Tutti i PDV</option>
           {pdvList.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
@@ -275,7 +409,7 @@ const contrattiUniq = risorse.map(r => r.contratto).filter(Boolean).filter((v, i
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/60 to-purple-400/60 flex items-center justify-center text-[10px] font-bold text-black flex-shrink-0">
-                      {`${r.cognome[0]}${r.nome[0]}`.toUpperCase()}
+                      {`${(r.cognome||'?')[0]}${(r.nome||'?')[0]}`.toUpperCase()}
                     </div>
                     <div>
                       <div className="text-sm font-medium">{r.cognome} {r.nome}</div>
