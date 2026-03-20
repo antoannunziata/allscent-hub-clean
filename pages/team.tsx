@@ -1,4 +1,4 @@
-Eccolo — incolla tutto in pages/team.tsx:
+Eccolo — copia solo questo blocco e incolla tutto in team.tsx:
 tsximport { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
@@ -122,11 +122,11 @@ export default function TeamPage({ session }: { session: Session | null }) {
   }
 
   function exportExcel() {
-    const headers = ['Codice', 'Cognome', 'Nome', 'CF', 'PDV', 'Ruolo', 'Mansione', 'Contratto', 'Scad. Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
+    const headers = ['Codice', 'Cognome', 'Nome', 'CF', 'PDV', 'Mansione', 'Contratto', 'Scad. Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
     const rows = filtered.map(r => [
       r.codice_dipendente || '', r.cognome, r.nome,
       r.codice_fiscale || '', r.pdv_nome || '',
-      RUOLI[r.ruolo] || r.ruolo || '', r.mansione || '',
+      r.mansione || RUOLI[r.ruolo] || r.ruolo || '',
       r.contratto || '', r.scadenza_contratto || '',
       r.data_assunzione || '', r.data_cessazione || '',
       r.stato, r.motivo_cessazione || '', r.telefono || '', r.email || ''
@@ -142,21 +142,17 @@ export default function TeamPage({ session }: { session: Session | null }) {
     if (!file) return
     setImporting(true)
     setImportResult(null)
-
     try {
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
-
       if (rows.length < 2) {
         setImportResult('Il file è vuoto.')
         setImporting(false)
         return
       }
-
       const headers: string[] = rows[0].map((h: any) => String(h || '').toUpperCase().trim())
-
       const col = (names: string[]) => {
         for (const n of names) {
           const idx = headers.findIndex(h => h.includes(n))
@@ -164,26 +160,23 @@ export default function TeamPage({ session }: { session: Session | null }) {
         }
         return -1
       }
-
-      const iCodice      = col(['CODICE DIPENDENTE', 'CODICE'])
-      const iCognome     = col(['COGNOME'])
-      const iNome        = col(['NOME'])
-      const iCF          = col(['CODICE FISCALE', 'CF'])
-      const iAssunzione  = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
-      const iCessazione  = col(['DATA CESSAZIONE', 'CESSAZIONE'])
-      const iFiliale     = col(['FILIALE', 'PDV', 'PUNTO VENDITA'])
-      const iScadenza    = col(['SCADENZA CONTRATTO', 'SCADENZA'])
-      const iMansione    = col(['MANSIONE'])
-      const iEmail       = col(['EMAIL', 'MAIL'])
-      const iTelefono    = col(['NUM TELEFONO', 'TELEFONO', 'CELL', 'TEL'])
-      const iStato       = col(['STATO'])
-
+      const iCodice     = col(['CODICE DIPENDENTE', 'CODICE'])
+      const iCognome    = col(['COGNOME'])
+      const iNome       = col(['NOME'])
+      const iCF         = col(['CODICE FISCALE', 'CF'])
+      const iAssunzione = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
+      const iCessazione = col(['DATA CESSAZIONE', 'CESSAZIONE'])
+      const iFiliale    = col(['FILIALE', 'PDV'])
+      const iScadenza   = col(['SCADENZA CONTRATTO', 'SCADENZA'])
+      const iMansione   = col(['MANSIONE'])
+      const iEmail      = col(['EMAIL', 'MAIL'])
+      const iTelefono   = col(['NUM TELEFONO', 'TELEFONO', 'CELL', 'TEL'])
+      const iStato      = col(['STATO'])
       if (iCognome === -1 || iNome === -1) {
-        setImportResult('Colonne COGNOME e NOME non trovate. Controlla il file.')
+        setImportResult('Colonne COGNOME e NOME non trovate.')
         setImporting(false)
         return
       }
-
       function parseDate(val: any): string | null {
         if (!val) return null
         if (val instanceof Date) return val.toISOString().slice(0, 10)
@@ -194,38 +187,29 @@ export default function TeamPage({ session }: { session: Session | null }) {
         if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
         return null
       }
-
       function normalizeStato(val: any): string {
-        const s = String(val || 'attivo').toLowerCase().trim()
+        const s = String(val || '').toLowerCase().trim()
         if (s.includes('cess')) return 'cessato'
         if (s.includes('mater')) return 'maternita'
         if (s.includes('cong')) return 'congedo'
         return 'attivo'
       }
-
       const dataRows = rows.slice(1).filter(r => r[iCognome] || r[iNome])
-
-      // Crea PDV mancanti
       const pdvNomi = dataRows
         .map(r => iFiliale !== -1 ? String(r[iFiliale] || '').trim() : '')
         .filter(Boolean)
         .filter((v, i, a) => a.indexOf(v) === i)
-
       for (const pdvNome of pdvNomi) {
-        const existing = pdvList.find(p => p.nome === pdvNome)
-        if (!existing) {
+        if (!pdvList.find(p => p.nome === pdvNome)) {
           await supabase.from('punti_vendita').insert({ nome: pdvNome, target_risorse: 1 })
         }
       }
-
       let inserted = 0
       let skipped = 0
-
       for (const row of dataRows) {
         const cognome = String(row[iCognome] || '').trim().toUpperCase()
         const nome = String(row[iNome] || '').trim()
         if (!cognome && !nome) { skipped++; continue }
-
         const payload: any = {
           cognome,
           nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
@@ -240,23 +224,18 @@ export default function TeamPage({ session }: { session: Session | null }) {
           telefono: iTelefono !== -1 ? String(row[iTelefono] || '').trim() || null : null,
           email: iEmail !== -1 ? String(row[iEmail] || '').trim().toLowerCase() || null : null,
         }
-
         const { error } = await supabase.from('risorse').insert(payload)
         if (error) { skipped++ } else { inserted++ }
       }
-
-      // Collega pdv_id
       const { data: pvs } = await supabase.from('punti_vendita').select('id, nome')
       for (const pv of pvs || []) {
         await supabase.from('risorse').update({ pdv_id: pv.id }).eq('pdv_nome', pv.nome)
       }
-
       await loadAll()
-      setImportResult(`Importazione completata: ${inserted} risorse inserite${skipped > 0 ? `, ${skipped} saltate` : ''}.`)
+      setImportResult(`Completata: ${inserted} inserite${skipped > 0 ? `, ${skipped} saltate` : ''}.`)
     } catch {
-      setImportResult('Errore durante l\'importazione. Controlla il formato del file.')
+      setImportResult('Errore durante l\'importazione.')
     }
-
     setImporting(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -295,7 +274,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
               <div>
                 <div className="label mb-1.5">PDV / Filiale</div>
                 <select className="input" value={form.pdv_nome} onChange={e => setForm({...form, pdv_nome: e.target.value})}>
-                  <option value="">— Seleziona —</option>
+                  <option value="">Seleziona</option>
                   {pdvList.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
                 </select>
               </div>
@@ -306,7 +285,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
               <div>
                 <div className="label mb-1.5">Ruolo</div>
                 <select className="input" value={form.ruolo} onChange={e => setForm({...form, ruolo: e.target.value})}>
-                  <option value="">— Seleziona —</option>
+                  <option value="">Seleziona</option>
                   <option value="SM">Store Manager</option>
                   <option value="VSM">Vice Store Manager</option>
                   <option value="AV">Assistente Vendita</option>
@@ -317,7 +296,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
               <div>
                 <div className="label mb-1.5">Contratto</div>
                 <select className="input" value={form.contratto} onChange={e => setForm({...form, contratto: e.target.value})}>
-                  <option value="">— Seleziona —</option>
+                  <option value="">Seleziona</option>
                   <option value="indeterminato">Indeterminato</option>
                   <option value="determinato">Determinato</option>
                   <option value="apprendistato">Apprendistato</option>
@@ -389,7 +368,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
       </div>
 
       {importResult && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${importResult.includes('completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${importResult.includes('Completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
           <span>{importResult}</span>
           <button className="ml-3 text-muted hover:text-white" onClick={() => setImportResult(null)}>✕</button>
         </div>
