@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+Eccolo — incolla tutto in pages/team.tsx:
+tsximport { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
 import type { Session } from '@supabase/supabase-js'
@@ -12,6 +13,7 @@ const STATI_COLORS: Record<string, string> = {
   attivo: 'bg-green-500/20 text-green-400',
   cessato: 'bg-red-500/20 text-red-400',
   maternita: 'bg-purple-500/20 text-purple-400',
+  congedo: 'bg-blue-500/20 text-blue-400',
   default: 'bg-surface3 text-muted2'
 }
 
@@ -27,7 +29,8 @@ export default function TeamPage({ session }: { session: Session | null }) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({
-    cognome: '', nome: '', pdv_nome: '', ruolo: '', contratto: '',
+    codice_dipendente: '', cognome: '', nome: '', codice_fiscale: '',
+    pdv_nome: '', ruolo: '', mansione: '', contratto: '', scadenza_contratto: '',
     data_assunzione: '', data_cessazione: '', stato: 'attivo',
     motivo_cessazione: '', telefono: '', email: '', note: ''
   })
@@ -62,7 +65,8 @@ export default function TeamPage({ session }: { session: Session | null }) {
   function openNew() {
     setEditingId(null)
     setForm({
-      cognome: '', nome: '', pdv_nome: '', ruolo: '', contratto: '',
+      codice_dipendente: '', cognome: '', nome: '', codice_fiscale: '',
+      pdv_nome: '', ruolo: '', mansione: '', contratto: '', scadenza_contratto: '',
       data_assunzione: '', data_cessazione: '', stato: 'attivo',
       motivo_cessazione: '', telefono: '', email: '', note: ''
     })
@@ -72,8 +76,12 @@ export default function TeamPage({ session }: { session: Session | null }) {
   function openEdit(r: any) {
     setEditingId(r.id)
     setForm({
-      cognome: r.cognome || '', nome: r.nome || '', pdv_nome: r.pdv_nome || '',
-      ruolo: r.ruolo || '', contratto: r.contratto || '',
+      codice_dipendente: r.codice_dipendente || '',
+      cognome: r.cognome || '', nome: r.nome || '',
+      codice_fiscale: r.codice_fiscale || '',
+      pdv_nome: r.pdv_nome || '', ruolo: r.ruolo || '',
+      mansione: r.mansione || '', contratto: r.contratto || '',
+      scadenza_contratto: r.scadenza_contratto || '',
       data_assunzione: r.data_assunzione || '', data_cessazione: r.data_cessazione || '',
       stato: r.stato || 'attivo', motivo_cessazione: r.motivo_cessazione || '',
       telefono: r.telefono || '', email: r.email || '', note: r.note || ''
@@ -85,6 +93,10 @@ export default function TeamPage({ session }: { session: Session | null }) {
     setSaving(true)
     const payload = {
       ...form,
+      codice_dipendente: form.codice_dipendente || null,
+      codice_fiscale: form.codice_fiscale || null,
+      mansione: form.mansione || null,
+      scadenza_contratto: form.scadenza_contratto || null,
       data_assunzione: form.data_assunzione || null,
       data_cessazione: form.data_cessazione || null,
       motivo_cessazione: form.motivo_cessazione || null,
@@ -110,17 +122,19 @@ export default function TeamPage({ session }: { session: Session | null }) {
   }
 
   function exportExcel() {
-    const headers = ['Cognome', 'Nome', 'PDV', 'Ruolo', 'Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
+    const headers = ['Codice', 'Cognome', 'Nome', 'CF', 'PDV', 'Ruolo', 'Mansione', 'Contratto', 'Scad. Contratto', 'Data Assunzione', 'Data Cessazione', 'Stato', 'Motivo Cessazione', 'Telefono', 'Email']
     const rows = filtered.map(r => [
-      r.cognome, r.nome, r.pdv_nome, RUOLI[r.ruolo] || r.ruolo,
-      r.contratto, r.data_assunzione || '', r.data_cessazione || '',
+      r.codice_dipendente || '', r.cognome, r.nome,
+      r.codice_fiscale || '', r.pdv_nome || '',
+      RUOLI[r.ruolo] || r.ruolo || '', r.mansione || '',
+      r.contratto || '', r.scadenza_contratto || '',
+      r.data_assunzione || '', r.data_cessazione || '',
       r.stato, r.motivo_cessazione || '', r.telefono || '', r.email || ''
     ])
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Risorse')
-    const today = new Date().toISOString().slice(0, 10)
-    XLSX.writeFile(wb, `anagrafica_risorse_${today}.xlsx`)
+    XLSX.writeFile(wb, `anagrafica_risorse_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -136,15 +150,13 @@ export default function TeamPage({ session }: { session: Session | null }) {
       const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
       if (rows.length < 2) {
-        setImportResult('Il file è vuoto o non ha righe di dati.')
+        setImportResult('Il file è vuoto.')
         setImporting(false)
         return
       }
 
-      // Rileva header automaticamente (prima riga)
       const headers: string[] = rows[0].map((h: any) => String(h || '').toUpperCase().trim())
 
-      // Mappa colonne flessibile
       const col = (names: string[]) => {
         for (const n of names) {
           const idx = headers.findIndex(h => h.includes(n))
@@ -153,17 +165,18 @@ export default function TeamPage({ session }: { session: Session | null }) {
         return -1
       }
 
+      const iCodice      = col(['CODICE DIPENDENTE', 'CODICE'])
       const iCognome     = col(['COGNOME'])
       const iNome        = col(['NOME'])
+      const iCF          = col(['CODICE FISCALE', 'CF'])
+      const iAssunzione  = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
+      const iCessazione  = col(['DATA CESSAZIONE', 'CESSAZIONE'])
       const iFiliale     = col(['FILIALE', 'PDV', 'PUNTO VENDITA'])
-      const iRuolo       = col(['RUOLO'])
-      const iContratto   = col(['CONTRATTO'])
-      const iAssunzione  = col(['ASSUNZIONE', 'DATA ASS'])
-      const iCessazione  = col(['CESSAZIONE', 'DATA CESS'])
-      const iStato       = col(['STATO'])
-      const iMotivo      = col(['MOTIVO'])
-      const iTelefono    = col(['CELL', 'TEL', 'TELEFONO'])
+      const iScadenza    = col(['SCADENZA CONTRATTO', 'SCADENZA'])
+      const iMansione    = col(['MANSIONE'])
       const iEmail       = col(['EMAIL', 'MAIL'])
+      const iTelefono    = col(['NUM TELEFONO', 'TELEFONO', 'CELL', 'TEL'])
+      const iStato       = col(['STATO'])
 
       if (iCognome === -1 || iNome === -1) {
         setImportResult('Colonne COGNOME e NOME non trovate. Controlla il file.')
@@ -176,20 +189,28 @@ export default function TeamPage({ session }: { session: Session | null }) {
         if (val instanceof Date) return val.toISOString().slice(0, 10)
         const s = String(val).trim()
         if (!s) return null
-        // Prova formato italiano gg/mm/aaaa
         const it = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-        if (it) return `${it[3]}-${it[2].padStart(2,'0')}-${it[1].padStart(2,'0')}`
-        // Prova ISO
+        if (it) return `${it[3]}-${it[2].padStart(2, '0')}-${it[1].padStart(2, '0')}`
         if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
         return null
       }
 
-      const dataRows = rows.slice(1).filter(r => r[iCognome] || r[iNome])
-      let inserted = 0
-      let skipped = 0
+      function normalizeStato(val: any): string {
+        const s = String(val || 'attivo').toLowerCase().trim()
+        if (s.includes('cess')) return 'cessato'
+        if (s.includes('mater')) return 'maternita'
+        if (s.includes('cong')) return 'congedo'
+        return 'attivo'
+      }
 
-      // Raccoglie PDV unici e li crea se non esistono
-      const pdvNomi = [...new Set(dataRows.map(r => String(r[iFiliale] || '').trim()).filter(Boolean))] as string[]
+      const dataRows = rows.slice(1).filter(r => r[iCognome] || r[iNome])
+
+      // Crea PDV mancanti
+      const pdvNomi = dataRows
+        .map(r => iFiliale !== -1 ? String(r[iFiliale] || '').trim() : '')
+        .filter(Boolean)
+        .filter((v, i, a) => a.indexOf(v) === i)
+
       for (const pdvNome of pdvNomi) {
         const existing = pdvList.find(p => p.nome === pdvNome)
         if (!existing) {
@@ -197,23 +218,27 @@ export default function TeamPage({ session }: { session: Session | null }) {
         }
       }
 
+      let inserted = 0
+      let skipped = 0
+
       for (const row of dataRows) {
-        const cognome = String(row[iCognome] || '').trim()
+        const cognome = String(row[iCognome] || '').trim().toUpperCase()
         const nome = String(row[iNome] || '').trim()
         if (!cognome && !nome) { skipped++; continue }
 
-        const payload = {
-          cognome: cognome.toUpperCase(),
+        const payload: any = {
+          cognome,
           nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
-          pdv_nome: iFiliale !== -1 ? String(row[iFiliale] || '').trim() : null,
-          ruolo: iRuolo !== -1 ? String(row[iRuolo] || '').trim() : null,
-          contratto: iContratto !== -1 ? String(row[iContratto] || '').trim().toLowerCase() : null,
+          codice_dipendente: iCodice !== -1 ? String(row[iCodice] || '').trim() || null : null,
+          codice_fiscale: iCF !== -1 ? String(row[iCF] || '').trim().toUpperCase() || null : null,
+          pdv_nome: iFiliale !== -1 ? String(row[iFiliale] || '').trim() || null : null,
+          mansione: iMansione !== -1 ? String(row[iMansione] || '').trim() || null : null,
+          scadenza_contratto: iScadenza !== -1 ? parseDate(row[iScadenza]) : null,
           data_assunzione: iAssunzione !== -1 ? parseDate(row[iAssunzione]) : null,
           data_cessazione: iCessazione !== -1 ? parseDate(row[iCessazione]) : null,
-          stato: iStato !== -1 ? String(row[iStato] || 'attivo').trim().toLowerCase() : 'attivo',
-          motivo_cessazione: iMotivo !== -1 ? String(row[iMotivo] || '').trim() || null : null,
-          telefono: iTelefono !== -1 ? String(row[iTelefono] || '').trim() : null,
-          email: iEmail !== -1 ? String(row[iEmail] || '').trim().toLowerCase() : null,
+          stato: iStato !== -1 ? normalizeStato(row[iStato]) : 'attivo',
+          telefono: iTelefono !== -1 ? String(row[iTelefono] || '').trim() || null : null,
+          email: iEmail !== -1 ? String(row[iEmail] || '').trim().toLowerCase() || null : null,
         }
 
         const { error } = await supabase.from('risorse').insert(payload)
@@ -228,7 +253,7 @@ export default function TeamPage({ session }: { session: Session | null }) {
 
       await loadAll()
       setImportResult(`Importazione completata: ${inserted} risorse inserite${skipped > 0 ? `, ${skipped} saltate` : ''}.`)
-    } catch (err) {
+    } catch {
       setImportResult('Errore durante l\'importazione. Controlla il formato del file.')
     }
 
@@ -242,16 +267,8 @@ export default function TeamPage({ session }: { session: Session | null }) {
 
   return (
     <Layout session={session}>
-      {/* Input file nascosto */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="hidden"
-        onChange={handleImport}
-      />
+      <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
 
-      {/* Modal form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-surface border border-white/10 rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -259,6 +276,14 @@ export default function TeamPage({ session }: { session: Session | null }) {
               {editingId ? 'Modifica risorsa' : 'Nuova risorsa'}
             </h3>
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="label mb-1.5">Codice dipendente</div>
+                <input className="input" value={form.codice_dipendente} onChange={e => setForm({...form, codice_dipendente: e.target.value})} />
+              </div>
+              <div>
+                <div className="label mb-1.5">Codice fiscale</div>
+                <input className="input" value={form.codice_fiscale} onChange={e => setForm({...form, codice_fiscale: e.target.value.toUpperCase()})} />
+              </div>
               <div>
                 <div className="label mb-1.5">Cognome *</div>
                 <input className="input" value={form.cognome} onChange={e => setForm({...form, cognome: e.target.value})} />
@@ -273,6 +298,10 @@ export default function TeamPage({ session }: { session: Session | null }) {
                   <option value="">— Seleziona —</option>
                   {pdvList.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
                 </select>
+              </div>
+              <div>
+                <div className="label mb-1.5">Mansione</div>
+                <input className="input" value={form.mansione} onChange={e => setForm({...form, mansione: e.target.value})} />
               </div>
               <div>
                 <div className="label mb-1.5">Ruolo</div>
@@ -297,11 +326,16 @@ export default function TeamPage({ session }: { session: Session | null }) {
                 </select>
               </div>
               <div>
+                <div className="label mb-1.5">Scadenza contratto</div>
+                <input type="date" className="input" value={form.scadenza_contratto} onChange={e => setForm({...form, scadenza_contratto: e.target.value})} />
+              </div>
+              <div>
                 <div className="label mb-1.5">Stato</div>
                 <select className="input" value={form.stato} onChange={e => setForm({...form, stato: e.target.value})}>
                   <option value="attivo">Attivo</option>
                   <option value="cessato">Cessato</option>
                   <option value="maternita">Maternità</option>
+                  <option value="congedo">Congedo</option>
                   <option value="malattia">Malattia</option>
                 </select>
               </div>
@@ -354,15 +388,13 @@ export default function TeamPage({ session }: { session: Session | null }) {
         </div>
       </div>
 
-      {/* Messaggio risultato import */}
       {importResult && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border ${importResult.includes('completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
-          {importResult}
+        <div className={`mb-4 px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${importResult.includes('completata') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+          <span>{importResult}</span>
           <button className="ml-3 text-muted hover:text-white" onClick={() => setImportResult(null)}>✕</button>
         </div>
       )}
 
-      {/* Filtri */}
       <div className="card mb-5 grid grid-cols-2 lg:grid-cols-5 gap-3">
         <input className="input col-span-2 lg:col-span-1" placeholder="🔍 Cerca nome..."
           value={filterNome} onChange={e => setFilterNome(e.target.value)} />
@@ -384,14 +416,13 @@ export default function TeamPage({ session }: { session: Session | null }) {
         </select>
       </div>
 
-      {/* Tabella */}
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/5 bg-surface2">
               <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Risorsa</th>
               <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">PDV</th>
-              <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Ruolo</th>
+              <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Mansione</th>
               <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Contratto</th>
               <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Assunzione</th>
               <th className="text-left text-xs text-muted2 font-semibold px-4 py-3">Stato</th>
@@ -413,12 +444,12 @@ export default function TeamPage({ session }: { session: Session | null }) {
                     </div>
                     <div>
                       <div className="text-sm font-medium">{r.cognome} {r.nome}</div>
-                      <div className="text-[11px] text-muted">{r.email}</div>
+                      <div className="text-[11px] text-muted">{r.codice_dipendente ? `#${r.codice_dipendente}` : r.email}</div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-sm text-muted2">{r.pdv_nome || '—'}</td>
-                <td className="px-4 py-3 text-sm text-muted2">{RUOLI[r.ruolo] || r.ruolo || '—'}</td>
+                <td className="px-4 py-3 text-sm text-muted2">{r.mansione || RUOLI[r.ruolo] || r.ruolo || '—'}</td>
                 <td className="px-4 py-3 text-sm text-muted2 capitalize">{r.contratto || '—'}</td>
                 <td className="px-4 py-3 text-sm text-muted2">{r.data_assunzione || '—'}</td>
                 <td className="px-4 py-3">
