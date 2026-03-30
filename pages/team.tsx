@@ -475,3 +475,4 @@ export default function TeamPage({ session }: { session: Session | null }) {
     </Layout>
   )
 }
+
