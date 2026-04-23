@@ -190,15 +190,17 @@ export default function TeamPage({ session }: { session: Session | null }) {
       }
       const headers = parseCSVLine(lines[0]).map(h => h.toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim())
       const col = (names: string[]) => {
-        for (const n of names) {
-          const idx = headers.findIndex(h => h.includes(n))
-          if (idx !== -1) return idx
-        }
-        return -1
-      }
-      const iCodice    = col(['CODICE DIPENDENTE', 'CODICE'])
-      const iCognome   = col(['COGNOME'])
-      const iNome      = col(['NOME'])
+  for (const n of names) {
+    const exact = headers.findIndex(h => h === n)
+    if (exact !== -1) return exact
+    const idx = headers.findIndex(h => h.includes(n) && !['COGNOME'].includes(h))
+    if (idx !== -1) return idx
+  }
+  return -1
+}
+const iCodice    = col(['CODICE DIPENDENTE', 'CODICE'])
+const iCognome   = headers.findIndex(h => h === 'COGNOME')
+const iNome      = headers.findIndex(h => h === 'NOME')
       const iCF        = col(['CODICE FISCALE', 'CF'])
       const iAssunzione = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
       const iCessazione = col(['DATA CESSAZIONE', 'CESSAZIONE'])
