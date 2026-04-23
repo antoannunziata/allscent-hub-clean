@@ -196,11 +196,11 @@ export default function TeamPage({ session }: { session: Session | null }) {
     const idx = headers.findIndex(h => h.includes(n) && !['COGNOME'].includes(h))
     if (idx !== -1) return idx
   }
-  return -1
-}
-const iCodice    = col(['CODICE DIPENDENTE', 'CODICE'])
-const iCognome   = headers.findIndex(h => h === 'COGNOME')
-const iNome      = headers.findIndex(h => h === 'NOME')
+        return -1
+  }
+      const iCodice    = col(['CODICE DIPENDENTE', 'CODICE'])
+      const iCognome   = headers.findIndex(h => h === 'COGNOME')
+      const iNome      = headers.findIndex(h => h === 'NOME')
       const iCF        = col(['CODICE FISCALE', 'CF'])
       const iAssunzione = col(['DATA ASSUNZIONE', 'ASSUNZIONE'])
       const iCessazione = col(['DATA CESSAZIONE', 'CESSAZIONE'])
@@ -235,6 +235,13 @@ const iNome      = headers.findIndex(h => h === 'NOME')
         const cognome = (row[iCognome] || '').trim().toUpperCase()
         const nome = (row[iNome] || '').trim()
         if (!cognome && !nome) { skipped++; continue }
+        const { data: existing } = await supabase
+        .from('risorse')
+        .select('id')
+        .eq('cognome', cognome)
+        .eq('nome', nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase())
+        .maybeSingle()
+        if (existing) { skipped++; continue }
         const payload: any = {
           cognome,
           nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
